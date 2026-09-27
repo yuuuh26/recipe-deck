@@ -255,7 +255,7 @@ async function shareJsonFile(data, filename) {
   const file = new File([data], filename, {type: 'application/json'});
   if (navigator.share && navigator.canShare?.({files: [file]})) {
     try {
-      await navigator.share({title: 'Recipe Deck AI用JSON', text: 'AIに渡すためのRecipe Deck JSONです。', files: [file]});
+      await navigator.share({title: 'Recipe Deck AI用JSON', files: [file]});
       return true;
     } catch (error) {
       if (error?.name === 'AbortError') return false;
@@ -312,10 +312,10 @@ function wire() {
       active = null; showPage('home'); toast('レシピを削除しました');
     } catch { toast('削除できませんでした'); }
   });
-  $('copyQuestion').addEventListener('click', async () => {
+  $('copyQuestion').addEventListener('click', () => {
     if (!active?.recipeText.trim()) { toast('レシピ本文を入力してください'); return; }
-    if (!await flush()) return;
-    await shareText(questionText(active, tags), titleOf(active.recipeText) + 'について質問');
+    if (revision > savedRevision) void persist();
+    void shareText(questionText(active, tags), titleOf(active.recipeText) + 'について質問');
   });
   $('exportAll').addEventListener('click', () => showJson(recipes.slice().sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))));
   $('exportResults').addEventListener('click', () => showJson(filterRecipes(recipes, homeFilter())));
