@@ -39,12 +39,12 @@
         <div class="panel"><div class="field-heading">味の評価 <small>7点以上は「また食べたい」</small></div><div id="ratings" class="rating-grid" role="group" aria-label="味の評価"></div><button id="clearRating" class="text-button subtle">評価を解除</button></div>
         <div class="panel"><div class="field-heading">タグ <small id="tagCounter">0 / 3</small></div><div id="editorTags" class="chips"></div><p class="footnote">タグは最大3個まで設定できます。</p><button id="createTagHere" class="text-button">＋ 新しいタグを作成</button></div>
         <label class="field-heading" for="notes">備考 <small>次回の工夫や家族の感想など</small></label><textarea id="notes" rows="5" placeholder="次回は少し味噌を減らす、など"></textarea>
-        <div class="editor-actions"><button id="copyQuestion" class="button primary">AIに質問用コピー</button><button id="deleteRecipe" class="button danger">レシピを削除</button></div>
+        <div class="ai-share-note"><strong>そのままAIへ送ってOK</strong><p>レシピの末尾に「このレシピについて質問があるので、答えてください。」を自動で付けて共有します。</p></div>\n        <div class="editor-actions"><button id="copyQuestion" class="button primary">AIに質問する</button><button id="deleteRecipe" class="button danger">レシピを削除</button></div>
       </section>
 
       <section id="export" class="page" aria-label="出力とバックアップ">
         <p class="eyebrow">SHARE & PRESERVE</p><h1 class="page-title">出力とバックアップ</h1>
-        <div class="panel"><h2>AI用 JSON</h2><p class="help">レシピの本文・評価・タグ・備考をまとめてAIへ渡せます。</p>
+        <div class="panel"><h2>AI用 JSON</h2><p class="help">レシピの本文・評価・タグ・備考をまとめてAIへ渡せます。出力後はテキストまたはJSONファイルを共有画面からAIへ直接送れます。</p>
           <div class="stack"><button id="exportAll" class="button primary full">全レシピをJSON出力</button><button id="exportResults" class="button outline full">一覧の検索結果をJSON出力</button></div>
           <div class="divider"><span>条件を指定して出力</span></div>
           <label class="field-heading" for="exportKeyword">キーワード</label><input id="exportKeyword" type="search" placeholder="料理名・材料・備考">
@@ -63,7 +63,7 @@
       <section id="settings" class="page" aria-label="設定">
         <p class="eyebrow">PREFERENCES</p><h1 class="page-title">設定</h1>
         <div class="panel"><h2>タグ管理</h2><div id="managedTags" class="tag-manager"></div><button id="createTagInSettings" class="button outline full">＋ 新しいタグ</button></div>
-        <div class="panel info"><h2>アプリ情報</h2><dl><div><dt>バージョン</dt><dd>v1.1.0</dd></div><div><dt>保存方式</dt><dd>端末内 IndexedDB</dd></div><div><dt>永続ストレージ</dt><dd id="storageState">確認中</dd></div><div><dt>公開 URL</dt><dd><button id="copyUrl" class="inline-link">URL をコピー</button></dd></div><div><dt>GitHub</dt><dd><button id="copyRepo" class="inline-link">リポジトリ URL をコピー</button></dd></div></dl><p class="footnote">データは端末内に保存されます。端末やブラウザーのデータ削除に備え、定期的にバックアップしてください。</p></div>
+        <div class="panel info"><h2>アプリ情報</h2><dl><div><dt>バージョン</dt><dd>v1.2.0</dd></div><div><dt>保存方式</dt><dd>端末内 IndexedDB</dd></div><div><dt>永続ストレージ</dt><dd id="storageState">確認中</dd></div><div><dt>公開 URL</dt><dd><button id="copyUrl" class="inline-link">URL をコピー</button></dd></div><div><dt>GitHub</dt><dd><button id="copyRepo" class="inline-link">リポジトリ URL をコピー</button></dd></div></dl><p class="footnote">データは端末内に保存されます。端末やブラウザーのデータ削除に備え、定期的にバックアップしてください。</p></div>
         <p class="signature">Made by YUU</p>
       </section>
     </main>
@@ -72,7 +72,7 @@
       <button data-page="export"><span aria-hidden="true">⇧</span>出力</button>
       <button data-page="settings"><span aria-hidden="true">⚙</span>設定</button>
     </nav>
-    <dialog id="jsonDialog" class="json-dialog"><h2>AI用 JSON</h2><p id="jsonSummary"></p><textarea id="jsonOutput" readonly aria-label="出力したJSON"></textarea><div class="dialog-actions"><button id="copyJson" class="button primary">JSONをコピー</button><button id="downloadJson" class="button outline">ファイル保存</button><button id="closeJson" class="text-button">閉じる</button></div></dialog>
+    <dialog id="jsonDialog" class="json-dialog"><h2>AI用 JSON</h2><p id="jsonSummary"></p><textarea id="jsonOutput" readonly aria-label="出力したJSON"></textarea><div class="dialog-actions"><button id="copyJson" class="button primary">テキストでAIへ共有</button><button id="downloadJson" class="button outline">JSONファイルでAIへ共有</button><button id="closeJson" class="text-button">閉じる</button></div><p class="share-fallback">共有に対応していない環境では、テキストはコピー、JSONファイルは端末保存に自動で切り替わります。</p></dialog>
     <dialog id="cookingDialog" class="cooking-dialog" aria-labelledby="cookingTitle">
       <header class="cooking-header"><div><p class="eyebrow">COOKING MODE</p><span>料理中の閲覧</span></div><button id="closeCookingMode" class="cooking-close" type="button" aria-label="料理モードを閉じる">閉じる ✕</button></header>
       <article class="cooking-sheet"><h1 id="cookingTitle"></h1><div id="cookingBody" class="cooking-body"></div></article>
