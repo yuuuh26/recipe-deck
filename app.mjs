@@ -235,8 +235,35 @@ function downloadJson(data, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 async function copy(value) {
-  try { await navigator.clipboard.writeText(value); toast('コピーしました'); }
-  catch { toast('コピーできませんでした。テキスト欄から手動でコピーしてください'); }
+  try { await navigator.clipboard.writeText(value); toast('コピーしました'); return true; }
+  catch { toast('コピーできませんでした。テキスト欄から手動でコピーしてください'); return false; }
+}
+async function shareText(value, title = 'Recipe Deck') {
+  if (navigator.share) {
+    try {
+      await navigator.share({title, text: value});
+      return true;
+    } catch (error) {
+      if (error?.name === 'AbortError') return false;
+    }
+  }
+  const copied = await copy(value);
+  if (copied) toast('共有画面を開けないため、クリップボードにコピーしました');
+  return copied;
+}
+async function shareJsonFile(data, filename) {
+  const file = new File([data], filename, {type: 'application/json'});
+  if (navigator.share && navigator.canShare?.({files: [file]})) {
+    try {
+      await navigator.share({title: 'Recipe Deck AI用JSON', text: 'AIに渡すためのRecipe Deck JSONです。', files: [file]});
+      return true;
+    } catch (error) {
+      if (error?.name === 'AbortError') return false;
+    }
+  }
+  downloadJson(data, filename);
+  toast('共有画面を開けないため、JSONファイルを保存しました');
+  return false;
 }
 async function importBackup(file) {
   if (!file) return;
@@ -288,13 +315,13 @@ function wire() {
   $('copyQuestion').addEventListener('click', async () => {
     if (!active?.recipeText.trim()) { toast('レシピ本文を入力してください'); return; }
     if (!await flush()) return;
-    await copy(questionText(active, tags));
+    await shareText(questionText(active, tags), titleOf(active.recipeText) + 'について質問');
   });
   $('exportAll').addEventListener('click', () => showJson(recipes.slice().sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))));
   $('exportResults').addEventListener('click', () => showJson(filterRecipes(recipes, homeFilter())));
   $('exportFiltered').addEventListener('click', () => showJson(filterRecipes(recipes, exportFilter())));
-  $('copyJson').addEventListener('click', () => copy($('jsonOutput').value));
-  $('downloadJson').addEventListener('click', () => downloadJson($('jsonOutput').value, 'recipe-deck-ai-' + new Date().toISOString().slice(0,10) + '.json'));
+  $('copyJson').addEventListener('click', () => shareText($('jsonOutput').value, 'Recipe Deck AI用JSON'));
+  $('downloadJson').addEventListener('click', () => shareJsonFile($('jsonOutput').value, 'recipe-deck-ai-' + new Date().toISOString().slice(0,10) + '.json'));
   $('closeJson').addEventListener('click', () => $('jsonDialog').close());
   $('downloadBackup').addEventListener('click', () => {
     try {
