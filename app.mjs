@@ -122,6 +122,17 @@ function openRecipe(recipe = null) {
   revision = savedRevision = 0; renderEditor(); showPage('editor');
   if (!recipe) $('recipeText').focus();
 }
+function openCookingMode() {
+  if (!active?.recipeText.trim()) { toast('レシピ本文を入力してください'); return; }
+  const normalized = active.recipeText.replace(/\r\n/g, '\n');
+  const lines = normalized.split('\n');
+  const titleIndex = lines.findIndex(line => line.trim());
+  const title = titleIndex >= 0 ? lines[titleIndex].trim() : 'レシピ';
+  const body = titleIndex >= 0 ? lines.slice(titleIndex + 1).join('\n').replace(/^\s*\n/, '') : '';
+  $('cookingTitle').textContent = title;
+  $('cookingBody').textContent = body;
+  if (!$('cookingDialog').open) $('cookingDialog').showModal();
+}
 function changed() {
   revision++;
   status(active.recipeText.trim() ? '保存中…' : '本文を入力してください');
@@ -259,6 +270,8 @@ function wire() {
   $('keyword').addEventListener('input', renderHome);
   $('minimum').addEventListener('change', renderHome);
   $('recipeText').addEventListener('input', event => { active.recipeText = event.target.value; $('editorTitle').textContent = titleOf(active.recipeText); changed(); });
+  $('openCookingMode').addEventListener('click', async () => { if (await flush()) openCookingMode(); });
+  $('closeCookingMode').addEventListener('click', () => $('cookingDialog').close());
   $('notes').addEventListener('input', event => { active.notes = event.target.value; changed(); });
   $('clearRating').addEventListener('click', () => { active.rating = null; changed(); renderEditorControls(); });
   $('createTagHere').addEventListener('click', makeTag);

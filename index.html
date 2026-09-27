@@ -35,6 +35,7 @@
         <p class="eyebrow">RECIPE NOTE</p><h1 id="editorTitle" class="page-title">新しいレシピ</h1>
         <label class="field-heading" for="recipeText">レシピ本文 <small>最初の空行でない行がタイトルになります</small></label>
         <textarea id="recipeText" rows="14" placeholder="料理名&#10;&#10;【材料】&#10;&#10;【作り方】" spellcheck="false"></textarea>
+        <button id="openCookingMode" class="button outline full cooking-open" type="button"><span aria-hidden="true">▣</span> 料理モードで見る</button>
         <div class="panel"><div class="field-heading">味の評価 <small>7点以上は「また食べたい」</small></div><div id="ratings" class="rating-grid" role="group" aria-label="味の評価"></div><button id="clearRating" class="text-button subtle">評価を解除</button></div>
         <div class="panel"><div class="field-heading">タグ <small id="tagCounter">0 / 3</small></div><div id="editorTags" class="chips"></div><p class="footnote">タグは最大3個まで設定できます。</p><button id="createTagHere" class="text-button">＋ 新しいタグを作成</button></div>
         <label class="field-heading" for="notes">備考 <small>次回の工夫や家族の感想など</small></label><textarea id="notes" rows="5" placeholder="次回は少し味噌を減らす、など"></textarea>
@@ -62,7 +63,7 @@
       <section id="settings" class="page" aria-label="設定">
         <p class="eyebrow">PREFERENCES</p><h1 class="page-title">設定</h1>
         <div class="panel"><h2>タグ管理</h2><div id="managedTags" class="tag-manager"></div><button id="createTagInSettings" class="button outline full">＋ 新しいタグ</button></div>
-        <div class="panel info"><h2>アプリ情報</h2><dl><div><dt>バージョン</dt><dd>v1.0.0</dd></div><div><dt>保存方式</dt><dd>端末内 IndexedDB</dd></div><div><dt>永続ストレージ</dt><dd id="storageState">確認中</dd></div><div><dt>公開 URL</dt><dd><button id="copyUrl" class="inline-link">URL をコピー</button></dd></div><div><dt>GitHub</dt><dd><button id="copyRepo" class="inline-link">リポジトリ URL をコピー</button></dd></div></dl><p class="footnote">データは端末内に保存されます。端末やブラウザーのデータ削除に備え、定期的にバックアップしてください。</p></div>
+        <div class="panel info"><h2>アプリ情報</h2><dl><div><dt>バージョン</dt><dd>v1.1.0</dd></div><div><dt>保存方式</dt><dd>端末内 IndexedDB</dd></div><div><dt>永続ストレージ</dt><dd id="storageState">確認中</dd></div><div><dt>公開 URL</dt><dd><button id="copyUrl" class="inline-link">URL をコピー</button></dd></div><div><dt>GitHub</dt><dd><button id="copyRepo" class="inline-link">リポジトリ URL をコピー</button></dd></div></dl><p class="footnote">データは端末内に保存されます。端末やブラウザーのデータ削除に備え、定期的にバックアップしてください。</p></div>
         <p class="signature">Made by YUU</p>
       </section>
     </main>
@@ -72,6 +73,10 @@
       <button data-page="settings"><span aria-hidden="true">⚙</span>設定</button>
     </nav>
     <dialog id="jsonDialog" class="json-dialog"><h2>AI用 JSON</h2><p id="jsonSummary"></p><textarea id="jsonOutput" readonly aria-label="出力したJSON"></textarea><div class="dialog-actions"><button id="copyJson" class="button primary">JSONをコピー</button><button id="downloadJson" class="button outline">ファイル保存</button><button id="closeJson" class="text-button">閉じる</button></div></dialog>
+    <dialog id="cookingDialog" class="cooking-dialog" aria-labelledby="cookingTitle">
+      <header class="cooking-header"><div><p class="eyebrow">COOKING MODE</p><span>料理中の閲覧</span></div><button id="closeCookingMode" class="cooking-close" type="button" aria-label="料理モードを閉じる">閉じる ✕</button></header>
+      <article class="cooking-sheet"><h1 id="cookingTitle"></h1><div id="cookingBody" class="cooking-body"></div></article>
+    </dialog>
     <div id="toast" role="status" aria-live="polite"></div>
   </div>
   <script type="module" src="./app.mjs"></script>
