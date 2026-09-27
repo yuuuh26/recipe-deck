@@ -269,7 +269,9 @@ function wire() {
   $('alertBackup').addEventListener('click', () => navigate('export'));
   $('keyword').addEventListener('input', renderHome);
   $('minimum').addEventListener('change', renderHome);
-  $('recipeText').addEventListener('input', event => { active.recipeText = event.target.value; $('editorTitle').textContent = titleOf(active.recipeText); changed(); });\n  $('openCookingMode').addEventListener('click', async () => { if (await flush()) openCookingMode(); });\n  $('closeCookingMode').addEventListener('click', () => $('cookingDialog').close());
+  $('recipeText').addEventListener('input', event => { active.recipeText = event.target.value; $('editorTitle').textContent = titleOf(active.recipeText); changed(); });
+  $('openCookingMode').addEventListener('click', async () => { if (await flush()) openCookingMode(); });
+  $('closeCookingMode').addEventListener('click', () => $('cookingDialog').close());
   $('notes').addEventListener('input', event => { active.notes = event.target.value; changed(); });
   $('clearRating').addEventListener('click', () => { active.rating = null; changed(); renderEditorControls(); });
   $('createTagHere').addEventListener('click', makeTag);
