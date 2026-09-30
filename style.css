@@ -20,6 +20,9 @@ main{padding:0 20px}.page{display:none}.page.active{display:block}.hero{border-r
 .cooking-notes-text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:clamp(16px,4.2vw,19px);line-height:1.85;color:#596657}
 @media(min-width:700px){.cooking-sheet{padding-left:34px;padding-right:34px}.cooking-body{font-size:20px}.cooking-notes-text{font-size:18px}}
 
+.notes-prompt-copy{margin:10px 0 20px;padding:12px 14px;border:1px solid #e1e5db;border-radius:14px;background:#f8f9f4}
+.notes-prompt-copy p{margin:0 0 9px;font-size:12px;line-height:1.55;color:#6b7868}
+.notes-prompt-copy .button{margin:0}
 .ai-share-note{margin:20px 0 -10px;padding:13px 15px;border-radius:14px;background:#eef3e9;border:1px solid #d8e2d1;color:#3d5942}
 .ai-share-note strong{font-size:13px}.ai-share-note p{margin:5px 0 0;font-size:12px;line-height:1.65;color:#667664}
 .share-fallback{margin:10px 0 0!important;font-size:11px!important;line-height:1.6;color:#899386!important}
