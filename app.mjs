@@ -131,6 +131,9 @@ function openCookingMode() {
   const body = titleIndex >= 0 ? lines.slice(titleIndex + 1).join('\n').replace(/^\s*\n/, '') : '';
   $('cookingTitle').textContent = title;
   $('cookingBody').textContent = body;
+  const notes = (active.notes || '').trim();
+  $('cookingNotesText').textContent = notes;
+  $('cookingNotes').hidden = !notes;
   if (!$('cookingDialog').open) $('cookingDialog').showModal();
 }
 function changed() {
