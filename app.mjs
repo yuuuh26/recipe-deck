@@ -6,6 +6,7 @@ const settingsDefaults = {lastBackupRecipeCount: 0, lastBackupAt: null, createdS
 let recipes = [], tags = [], settings = {...settingsDefaults};
 let active = null, page = 'home', revision = 0, savedRevision = 0, timer;
 let saveQueue = Promise.resolve(), toastTimer, outputTags = new Set(), homeTags = new Set();
+const NOTES_SUMMARY_PROMPT = 'この料理について、ここまで私がした質問と、それぞれの回答を、次回作るときに活用できるよう簡潔にまとめて、備考欄へそのままコピペできる形で出力して。';
 const date = value => value ? new Date(value).toLocaleDateString('ja-JP') : 'なし';
 const now = () => new Date().toISOString();
 const id = prefix => prefix + '_' + crypto.randomUUID();
@@ -303,6 +304,7 @@ function wire() {
   $('openCookingMode').addEventListener('click', async () => { if (await flush()) openCookingMode(); });
   $('closeCookingMode').addEventListener('click', () => $('cookingDialog').close());
   $('notes').addEventListener('input', event => { active.notes = event.target.value; changed(); });
+  $('copyNotesSummaryPrompt').addEventListener('click', () => void copy(NOTES_SUMMARY_PROMPT));
   $('clearRating').addEventListener('click', () => { active.rating = null; changed(); renderEditorControls(); });
   $('createTagHere').addEventListener('click', makeTag);
   $('createTagInSettings').addEventListener('click', makeTag);
