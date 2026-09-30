@@ -76,7 +76,7 @@
     <dialog id="jsonDialog" class="json-dialog"><h2>AI用 JSON</h2><p id="jsonSummary"></p><textarea id="jsonOutput" readonly aria-label="出力したJSON"></textarea><div class="dialog-actions"><button id="copyJson" class="button primary">テキストでAIへ共有</button><button id="downloadJson" class="button outline">JSONファイルでAIへ共有</button><button id="closeJson" class="text-button">閉じる</button></div><p class="share-fallback">共有に対応していない環境では、テキストはコピー、JSONファイルは端末保存に自動で切り替わります。</p></dialog>
     <dialog id="cookingDialog" class="cooking-dialog" aria-labelledby="cookingTitle">
       <header class="cooking-header"><div><p class="eyebrow">COOKING MODE</p><span>料理中の閲覧</span></div><button id="closeCookingMode" class="cooking-close" type="button" aria-label="料理モードを閉じる">閉じる ✕</button></header>
-      <article class="cooking-sheet"><h1 id="cookingTitle"></h1><div id="cookingBody" class="cooking-body"></div></article>
+      <article class="cooking-sheet"><h1 id="cookingTitle"></h1><div id="cookingBody" class="cooking-body"></div><section id="cookingNotes" class="cooking-notes" aria-label="備考" hidden><div class="cooking-notes-label">備考</div><div id="cookingNotesText" class="cooking-notes-text"></div></section></article>
     </dialog>
     <div id="toast" role="status" aria-live="polite"></div>
   </div>
