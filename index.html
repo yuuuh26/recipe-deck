@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#f5efe4">
   <meta name="robots" content="noindex,nofollow">
   <title>Recipe Deck</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" href="./icons/icon-192.png">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
@@ -17,6 +18,7 @@
       <div class="brand"><span class="brand-mark" aria-hidden="true">R.</span><div><small>MY RECIPE LIBRARY</small><strong>Recipe Deck</strong></div></div>
       <button class="icon-button" id="settingsShortcut" aria-label="設定を開く">⚙</button>
     </header>
+    <button id="cloudSummary" class="cloud-summary" type="button" aria-live="polite">クラウド保存を確認中…</button>
     <main>
       <section id="home" class="page active" aria-label="レシピ一覧">
         <div class="hero"><div><p class="eyebrow">YOUR KITCHEN, YOUR NOTES</p><h1>おいしかった、を<br><em>また作れる。</em></h1><p>レシピをそのまま残して、次の一皿へ。</p></div><div class="hero-illustration" aria-hidden="true"><span>✦</span><span>◒</span><span>✧</span></div></div>
@@ -64,8 +66,21 @@
 
       <section id="settings" class="page" aria-label="設定">
         <p class="eyebrow">PREFERENCES</p><h1 class="page-title">設定</h1>
+
+        <div class="panel cloud-panel"><h2>自動クラウド保存</h2>
+          <p class="help">追加・削除、本文・備考・評価・タグの変更を端末に保存してから、約3秒後にまとめてクラウドへ送ります。閲覧や検索だけでは送信しません。</p>
+          <p id="cloudState" role="status" aria-live="polite"></p><p id="cloudPrevious" class="footnote"></p><p id="cloudError" class="error" role="status"></p>
+          <div id="cloudMigration" hidden><p>ログインを保持できるレシピ専用アドレスを使ってください。今のレシピは「出力」から完全バックアップJSONを保存し、新しいアドレスでインポートすると移せます。</p><a class="button primary full" href="https://recipe-deck-backups.dengana-10011212.workers.dev/">クラウド対応版を開く →</a><p class="footnote">アドレスごとに端末内の保存領域は別です。移行前のレシピはこのアドレスに残ります。</p></div>
+          <div id="cloudHosted">
+            <form id="cloudLoginForm"><label class="field-heading" for="cloudDevice">端末名</label><input id="cloudDevice" value="この端末" maxlength="80" required autocomplete="off"><label class="field-heading" for="cloudKey">レシピ専用の復旧キー</label><input id="cloudKey" type="password" required autocomplete="off" spellcheck="false"><button id="cloudLogin" class="button primary full" type="submit">この端末を接続</button><p class="footnote">初回だけ復旧キーで接続します。次回から通行証で接続を保持します。復旧キーは端末に保存しません。</p></form>
+            <div id="cloudConnected" hidden><p id="cloudDeviceLabel"></p><button id="cloudLogout" class="text-button" type="button">この端末をログアウト</button></div>
+            <button id="cloudRetry" class="button outline full" type="button" disabled>未送信の変更を今すぐ再送</button>
+            <details><summary>クラウドのバックアップから復元</summary><p class="help">最新5世代を全端末共通で保持します。他の端末の内容は、自動では端末のレシピを置き換えません。</p><button id="cloudLoadHistory" class="button outline full" type="button">保存履歴を表示</button><div id="cloudHistory"></div><button id="cloudRecoveryDownload" class="text-button" type="button">復元前に退避したJSONを保存</button></details>
+            <details id="cloudAdmin"><summary>接続中の端末を管理</summary><label class="field-heading" for="cloudAdminKey">本人確認用の復旧キー</label><input id="cloudAdminKey" type="password" autocomplete="off" spellcheck="false"><button id="cloudListSessions" class="button outline full" type="button">端末一覧を表示</button><div id="cloudSessions"></div><button id="cloudRevokeAll" class="text-button" type="button">すべての端末の接続を解除</button></details>
+          </div>
+        </div>
         <div class="panel"><h2>タグ管理</h2><div id="managedTags" class="tag-manager"></div><button id="createTagInSettings" class="button outline full">＋ 新しいタグ</button></div>
-        <div class="panel info"><h2>アプリ情報</h2><dl><div><dt>バージョン</dt><dd>v1.2.0</dd></div><div><dt>保存方式</dt><dd>端末内 IndexedDB</dd></div><div><dt>永続ストレージ</dt><dd id="storageState">確認中</dd></div><div><dt>公開 URL</dt><dd><button id="copyUrl" class="inline-link">URL をコピー</button></dd></div><div><dt>GitHub</dt><dd><button id="copyRepo" class="inline-link">リポジトリ URL をコピー</button></dd></div></dl><p class="footnote">データは端末内に保存されます。端末やブラウザーのデータ削除に備え、定期的にバックアップしてください。</p></div>
+        <div class="panel info"><h2>アプリ情報</h2><dl><div><dt>バージョン</dt><dd>v1.3.0</dd></div><div><dt>保存方式</dt><dd>端末内 + 変更時にクラウド</dd></div><div><dt>永続ストレージ</dt><dd id="storageState">確認中</dd></div><div><dt>公開 URL</dt><dd><button id="copyUrl" class="inline-link">URL をコピー</button></dd></div><div><dt>GitHub</dt><dd><button id="copyRepo" class="inline-link">リポジトリ URL をコピー</button></dd></div></dl><p class="footnote">端末に保存した変更は、接続後にクラウドへ自動保存します。未送信中のデータは端末内にだけ残るため、完全バックアップJSONも利用できます。</p></div>
         <p class="signature">Made by YUU</p>
       </section>
     </main>
@@ -74,6 +89,7 @@
       <button data-page="export"><span aria-hidden="true">⇧</span>出力</button>
       <button data-page="settings"><span aria-hidden="true">⚙</span>設定</button>
     </nav>
+    <dialog id="cloudPreview" class="json-dialog"><h2>クラウドの内容を確認</h2><p id="cloudPreviewText" class="cloud-preview"></p><div class="dialog-actions"><button id="cloudRestore" class="button primary" type="button">この内容で復元する</button><button id="cloudClosePreview" class="text-button" type="button">閉じる</button></div></dialog>
     <dialog id="jsonDialog" class="json-dialog"><h2>AI用 JSON</h2><p id="jsonSummary"></p><textarea id="jsonOutput" readonly aria-label="出力したJSON"></textarea><div class="dialog-actions"><button id="copyJson" class="button primary">テキストでAIへ共有</button><button id="downloadJson" class="button outline">JSONファイルでAIへ共有</button><button id="closeJson" class="text-button">閉じる</button></div><p class="share-fallback">共有に対応していない環境では、テキストはコピー、JSONファイルは端末保存に自動で切り替わります。</p></dialog>
     <dialog id="cookingDialog" class="cooking-dialog" aria-labelledby="cookingTitle">
       <header class="cooking-header"><div><p class="eyebrow">COOKING MODE</p><span>料理中の閲覧</span></div><button id="closeCookingMode" class="cooking-close" type="button" aria-label="料理モードを閉じる">閉じる ✕</button></header>

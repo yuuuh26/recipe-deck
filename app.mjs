@@ -1,3 +1,4 @@
+import {initCloud} from './cloud-ui.mjs';
 import {titleOf, filterRecipes, questionText, aiExport, backupExport, validateBackup} from './model.mjs';
 import {all, write, putSettings, removeRecipe, putTag, removeTagEverywhere, replaceAll} from './db.mjs';
 
@@ -151,7 +152,11 @@ async function persist() {
   snapshot.updatedAt = now();
   saveQueue = saveQueue.catch(() => {}).then(async () => {
     if (currentRevision <= savedRevision) return;
-    const isNew = !recipes.some(item => item.id === snapshot.id);
+    const previous = recipes.find(item => item.id === snapshot.id);
+    if (previous && ['recipeText', 'notes', 'rating'].every(k => previous[k] === snapshot[k]) && JSON.stringify(previous.tagIds) === JSON.stringify(snapshot.tagIds)) {
+      savedRevision = currentRevision; if (revision === currentRevision) status('保存済み'); return;
+    }
+    const isNew = !previous;
     const nextSettings = {...settings, createdSinceBackup: settings.createdSinceBackup + (isNew ? 1 : 0)};
     await write(isNew ? ['recipes', 'settings'] : ['recipes'], tx => {
       tx.objectStore('recipes').put(snapshot);
@@ -355,6 +360,10 @@ async function init() {
     [recipes, tags] = await Promise.all([all('recipes'), all('tags')]);
     settings = {...settingsDefaults, ...(await all('settings')).find(item => item.key === 'main')};
     showPage('home'); storageStatus();
+    await initCloud({flush, toast, download: downloadJson, restored: async data => {
+      recipes = data.recipes; tags = data.tags; settings = {...settingsDefaults, ...data.settings};
+      homeTags.clear(); outputTags.clear(); active = null; showPage('home');
+    }});
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('./service-worker.js').catch(() => {});
   } catch (error) {
     $('recipeList').replaceChildren(element('p', 'empty', 'データを開けませんでした。ブラウザーの保存設定を確認してください。'));

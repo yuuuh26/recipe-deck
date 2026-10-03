@@ -1,0 +1,9 @@
+name = "recipe-deck-backups"
+main = "dist/site-worker.js"
+compatibility_date = "2026-10-03"
+workers_dev = true
+[[d1_databases]]
+binding = "DB"
+database_name = "recipe-deck-backups"
+database_id = "e348501e-8915-4c74-ab86-bff538abc1c5"
+migrations_dir = "migrations"

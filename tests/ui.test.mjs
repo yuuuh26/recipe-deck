@@ -1,0 +1,43 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {runInNewContext} from 'node:vm';
+import {JSDOM} from 'jsdom';
+import 'fake-indexeddb/auto';
+import {CLOUD_ORIGIN} from '../cloud-api.mjs';
+import {cloudCapture} from '../db.mjs';
+const tick = ms => new Promise(r=>setTimeout(r,ms));
+test('実際の編集画面は本文変更後だけ送信し、閲覧・検索・同じ評価では送らない',async()=>{
+  const dom=new JSDOM(await readFile('index.html','utf8'),{url:CLOUD_ORIGIN+'/'});
+  for(const name of ['window','document','location','Option']) globalThis[name]=dom.window[name];
+  Object.defineProperty(globalThis,'navigator',{value:dom.window.navigator,configurable:true});
+  globalThis.scrollTo=()=>{};globalThis.confirm=()=>true;
+  const sent=[], bodies=new Map();let statusChecks=0;
+  globalThis.fetch=async(url,options)=>{
+    if(url.endsWith('/v1/session')){statusChecks++;return Response.json({connected:true,deviceName:'テスト端末',sessionId:'test'})}
+    if(options.method==='PUT'){const b=JSON.parse(options.body);sent.push(b);bodies.set(b.backup_id,b);return Response.json({backup_id:b.backup_id,sha256:b.sha256})}
+    return Response.json(bodies.get(url.split('/').at(-1)));
+  };
+  await import('../app.mjs');
+  while(!statusChecks)await tick(10);await tick(30);
+  assert.equal(sent.length,0);
+  document.getElementById('addRecipe').click();
+  const text=document.getElementById('recipeText');text.value='鶏の照り焼き\n鶏肉を焼く';text.dispatchEvent(new dom.window.Event('input'));
+  await tick(600);document.getElementById('backHome').click();
+  await tick(3100);assert.equal(sent.length,1);assert.equal((await cloudCapture()).meta.acknowledgedRevision,1);
+  assert.match(document.getElementById('cloudPrevious').textContent,/前回のクラウド保存：/);assert.doesNotMatch(document.getElementById('cloudPrevious').textContent,/まだありません/);
+  document.querySelector('.recipe-card').click();document.getElementById('clearRating').click();
+  await tick(600);document.getElementById('backHome').click();
+  const keyword=document.getElementById('keyword');keyword.value='鶏';keyword.dispatchEvent(new dom.window.Event('input'));
+  document.getElementById('settingsShortcut').click();await tick(50);
+  assert.equal((await cloudCapture()).meta.revision,1);assert.equal(sent.length,1);
+  assert.equal(document.getElementById('cloudLoginForm').hidden,true);assert.equal(document.getElementById('cloudConnected').hidden,false);
+  dom.window.close();
+});
+test('サービスワーカーは認証やバックアップのGETをキャッシュに渡さない',async()=>{
+  const listeners={};const self={location:{href:CLOUD_ORIGIN+'/service-worker.js',origin:CLOUD_ORIGIN},addEventListener:(name,fn)=>listeners[name]=fn};
+  runInNewContext(await readFile('service-worker.js','utf8'),{self,URL});
+  for(const path of ['/v1/session','/v1/backups','/v1/backups/id']){
+    let intercepted=false;listeners.fetch({request:{method:'GET',url:CLOUD_ORIGIN+path},respondWith:()=>intercepted=true});assert.equal(intercepted,false);
+  }
+});

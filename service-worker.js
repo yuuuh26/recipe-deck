@@ -1,5 +1,5 @@
-const CACHE = 'recipe-deck-v1.2.2';
-const ASSETS = ['./','./index.html','./style.css','./app.mjs','./model.mjs','./db.mjs','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png'];
+const CACHE = 'recipe-deck-v1.3.0-1';
+const ASSETS = ['./','./index.html','./style.css','./app.mjs','./model.mjs','./db.mjs','./cloud-snapshot.mjs','./cloud-api.mjs','./cloud-auto.mjs','./cloud-ui.mjs','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });
@@ -10,6 +10,12 @@ self.addEventListener('activate', event => {
   ]));
 });
 self.addEventListener('fetch', event => {
-  if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
-  event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request)));
+  const url = new URL(event.request.url);
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/v1/')) return;
+  // Cache only the public app shell. Authentication and private snapshots are
+  // always network-only and must never survive logout in Cache Storage.
+  const base = new URL('./', self.location.href);
+  const paths = ASSETS.map(path => new URL(path, base).pathname);
+  if (!paths.includes(url.pathname)) return;
+  event.respondWith(caches.open(CACHE).then(cache => cache.match(event.request, {ignoreSearch:true})).then(cached => cached || fetch(event.request)));
 });

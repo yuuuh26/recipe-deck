@@ -1,0 +1,6 @@
+import {build} from 'esbuild';
+import {readFile} from 'node:fs/promises';
+const files = {'index.html':'text/html;charset=utf-8','style.css':'text/css;charset=utf-8','app.mjs':'text/javascript;charset=utf-8','db.mjs':'text/javascript;charset=utf-8','model.mjs':'text/javascript;charset=utf-8','cloud-snapshot.mjs':'text/javascript;charset=utf-8','cloud-api.mjs':'text/javascript;charset=utf-8','cloud-auto.mjs':'text/javascript;charset=utf-8','cloud-ui.mjs':'text/javascript;charset=utf-8','service-worker.js':'text/javascript;charset=utf-8','manifest.webmanifest':'application/manifest+json','icons/icon-192.png':'image/png','icons/icon-512.png':'image/png','icons/icon-maskable-512.png':'image/png'};
+const assets = {};
+for (const [file,type] of Object.entries(files)) assets['/'+file] = {type,base64:(await readFile(file)).toString('base64')};
+await build({entryPoints:['cloudflare/site-worker.ts'],bundle:true,format:'esm',platform:'browser',minify:true,outfile:'cloudflare/dist/site-worker.js',plugins:[{name:'site-assets',setup(b){b.onResolve({filter:/^site-assets$/},()=>({path:'site-assets',namespace:'embedded'}));b.onLoad({filter:/.*/,namespace:'embedded'},()=>({contents:'export default '+JSON.stringify(assets),loader:'js'}))}}]});
