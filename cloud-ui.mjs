@@ -1,3 +1,4 @@
+import {pendingCharacters, eager} from './cloud-policy.mjs';
 import * as api from './cloud-api.mjs';
 import {createAutoBackup, snapshotOf} from './cloud-auto.mjs';
 import {cloudCapture, replaceAll, all} from './db.mjs';
@@ -9,7 +10,8 @@ export async function initCloud({flush, restored, toast, download}) {
   let session = null, checking = null;
   const auto = createAutoBackup({notify(s) {
     const pending = s.revision > s.acknowledgedRevision;
-    const text = s.sending ? 'クラウドへ保存中…' : !s.connected ? pending ? '端末に保存済み・クラウド未送信（ログインが必要）' : 'クラウド未接続' : pending ? '端末に保存済み・クラウド送信待ち' : s.lastSentAt ? 'クラウド保存済み' : '変更すると自動でクラウド保存';
+    const waiting = pending && !eager(s) ? '端末に保存済み・送信待ち（本文・備考 ' + pendingCharacters(s) + '/10文字）' : '端末に保存済み・クラウド送信待ち';
+    const text = s.sending ? 'クラウドへ保存中…' : !s.connected ? pending ? '端末に保存済み・クラウド未送信（ログインが必要）' : 'クラウド未接続' : pending ? waiting : s.lastSentAt ? 'クラウド保存済み' : '変更すると自動でクラウド保存';
     $('cloudSummary').textContent = text;
     $('cloudState').textContent = text;
     $('cloudPrevious').textContent = '前回のクラウド保存：' + date(s.lastSentAt);
@@ -51,7 +53,7 @@ export async function initCloud({flush, restored, toast, download}) {
     try { await api.logout(); await check(); toast('この端末をログアウトしました'); }
     catch(e) { toast(e.message); }
   });
-  $('cloudRetry').addEventListener('click', async () => { if (await flush()) await auto.run(); });
+  $('cloudRetry').addEventListener('click', async () => { if (await flush()) await auto.flushPending(); });
   $('cloudLoadHistory').addEventListener('click', async () => {
     $('cloudLoadHistory').disabled = true;
     try {

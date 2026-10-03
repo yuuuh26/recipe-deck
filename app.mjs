@@ -1,11 +1,11 @@
 import {initCloud} from './cloud-ui.mjs';
 import {titleOf, filterRecipes, questionText, aiExport, backupExport, validateBackup} from './model.mjs';
-import {all, write, putSettings, removeRecipe, putTag, removeTagEverywhere, replaceAll} from './db.mjs';
+import {all, putRecipe, putSettings, removeRecipe, putTag, removeTagEverywhere, replaceAll} from './db.mjs';
 
 const $ = id => document.getElementById(id);
 const settingsDefaults = {lastBackupRecipeCount: 0, lastBackupAt: null, createdSinceBackup: 0};
 let recipes = [], tags = [], settings = {...settingsDefaults};
-let active = null, page = 'home', revision = 0, savedRevision = 0, timer;
+let active = null, page = 'home', revision = 0, savedRevision = 0, timer, cloud, editorChanged = false;
 let saveQueue = Promise.resolve(), toastTimer, outputTags = new Set(), homeTags = new Set();
 const NOTES_SUMMARY_PROMPT = 'この料理について、ここまで私がした質問と、それぞれの回答を、次回作るときに活用できるよう簡潔にまとめて、備考欄へそのままコピペできる形で出力して。';
 const date = value => value ? new Date(value).toLocaleDateString('ja-JP') : 'なし';
@@ -48,6 +48,8 @@ async function navigate(next) {
     const okay = await flush();
     if (!okay) return;
     active = null;
+    if (editorChanged) void cloud?.flushPending();
+    editorChanged = false;
   }
   showPage(next);
 }
@@ -121,7 +123,7 @@ function openRecipe(recipe = null) {
     id: id('recipe'), title: '無題のレシピ', recipeText: '', rating: null,
     tagIds: [], notes: '', createdAt: now(), updatedAt: now()
   };
-  revision = savedRevision = 0; renderEditor(); showPage('editor');
+  revision = savedRevision = 0; editorChanged = false; renderEditor(); showPage('editor');
   if (!recipe) $('recipeText').focus();
 }
 function openCookingMode() {
@@ -158,10 +160,8 @@ async function persist() {
     }
     const isNew = !previous;
     const nextSettings = {...settings, createdSinceBackup: settings.createdSinceBackup + (isNew ? 1 : 0)};
-    await write(isNew ? ['recipes', 'settings'] : ['recipes'], tx => {
-      tx.objectStore('recipes').put(snapshot);
-      if (isNew) tx.objectStore('settings').put({key: 'main', ...nextSettings});
-    });
+    await putRecipe(snapshot, isNew ? nextSettings : undefined);
+    editorChanged = true;
     if (isNew) settings = nextSettings;
     recipes = recipes.filter(item => item.id !== snapshot.id).concat(snapshot);
     savedRevision = currentRevision;
@@ -352,7 +352,9 @@ function wire() {
   $('importFile').addEventListener('change', event => importBackup(event.target.files[0]));
   $('copyUrl').addEventListener('click', () => copy(location.href.split('#')[0]));
   $('copyRepo').addEventListener('click', () => copy('https://github.com/yuuuh26/recipe-deck'));
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && page === 'editor') void flush(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && page === 'editor') void flush().then(okay => { if (okay && editorChanged) void cloud?.flushPending(); });
+  });
 }
 async function init() {
   wire();
@@ -360,7 +362,7 @@ async function init() {
     [recipes, tags] = await Promise.all([all('recipes'), all('tags')]);
     settings = {...settingsDefaults, ...(await all('settings')).find(item => item.key === 'main')};
     showPage('home'); storageStatus();
-    await initCloud({flush, toast, download: downloadJson, restored: async data => {
+    cloud = await initCloud({flush, toast, download: downloadJson, restored: async data => {
       recipes = data.recipes; tags = data.tags; settings = {...settingsDefaults, ...data.settings};
       homeTags.clear(); outputTags.clear(); active = null; showPage('home');
     }});

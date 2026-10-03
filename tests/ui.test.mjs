@@ -32,6 +32,15 @@ test('実際の編集画面は本文変更後だけ送信し、閲覧・検索�
   document.getElementById('settingsShortcut').click();await tick(50);
   assert.equal((await cloudCapture()).meta.revision,1);assert.equal(sent.length,1);
   assert.equal(document.getElementById('cloudLoginForm').hidden,true);assert.equal(document.getElementById('cloudConnected').hidden,false);
+  // One-character note stays pending until leaving the editor.
+  document.querySelector('[data-page="home"]').click();document.querySelector('.recipe-card').click();
+  const notes=document.getElementById('notes');notes.value='塩';notes.dispatchEvent(new dom.window.Event('input'));
+  await tick(600);assert.equal(sent.length,1);assert.match(document.getElementById('cloudState').textContent,/1\/10文字/);
+  document.getElementById('backHome').click();
+  for(let i=0;i<100 && sent.length<2;i++)await tick(10);
+  assert.equal(sent.length,2);
+  for(let i=0;i<100 && (await cloudCapture()).meta.acknowledgedRevision<2;i++)await tick(10);
+  assert.equal((await cloudCapture()).meta.acknowledgedRevision,2);
   dom.window.close();
 });
 test('サービスワーカーは認証やバックアップのGETをキャッシュに渡さない',async()=>{

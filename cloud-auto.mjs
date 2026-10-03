@@ -1,7 +1,8 @@
 import {backupExport} from './model.mjs';
 import {createBackup} from './cloud-snapshot.mjs';
-import {cloudCapture, updateCloud, onDataChanged} from './db.mjs';
+import {cloudCapture, cloudMeta, updateCloud, onDataChanged} from './db.mjs';
 import {uploadBackup} from './cloud-api.mjs';
+import {dirty, eager, ready, IDLE_DELAY} from './cloud-policy.mjs';
 const defaults = {lastBackupRecipeCount: 0, lastBackupAt: null, createdSinceBackup: 0};
 export function snapshotOf(captured) {
   const settings = {...defaults, ...captured.settings.find(s => s.key === 'main')};
@@ -9,15 +10,26 @@ export function snapshotOf(captured) {
   data.settings = settings;
   return {format: 'recipe-deck.snapshot', schema_version: 1, revision: captured.meta.revision, data};
 }
-export function createAutoBackup({capture = cloudCapture, update = updateCloud, upload = uploadBackup,
+export function createAutoBackup({capture = cloudCapture, meta = cloudMeta, update = updateCloud, upload = uploadBackup,
   makeBackup = createBackup, subscribe = onDataChanged, online = () => globalThis.navigator?.onLine !== false,
-  notify = () => {}, delay = 3000, retryDelay = 15000, setTimer = setTimeout, clearTimer = clearTimeout} = {}) {
-  let connected = false, running = null, timer, retryCount = 0, stopped = false, lastMessage = '';
+  notify = () => {}, delay = 3000, retryDelay = 15000, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout} = {}) {
+  let connected = false, running = null, timer, retryCount = 0, stopped = false, lastMessage = '', planVersion = 0;
   const owner = crypto.randomUUID();
-  async function state(message) { if (message !== undefined) lastMessage = message; const c = await capture(); notify({...c.meta, connected, sending: !!running, message: lastMessage}); return c; }
-  function schedule(ms = delay) {
+  function notifyState(m) { notify({...m, connected, sending: !!running, message: lastMessage}); }
+  async function state(message) { if (message !== undefined) lastMessage = message; const m = await meta(); notifyState(m); return m; }
+  function arm(ms, options = {}) {
     if (stopped) return;
-    clearTimer(timer); timer = setTimer(() => { timer = null; void run(); }, ms);
+    clearTimer(timer); timer = setTimer(() => { timer = null; return run({automatic:true, ...options}); }, ms);
+  }
+  async function plan() {
+    const version = ++planVersion;
+    clearTimer(timer); timer = null;
+    const m = await meta();
+    if (version !== planVersion || stopped) return;
+    notifyState(m);
+    if (!connected || !online() || !dirty(m)) return;
+    if (eager(m)) arm(delay);
+    else arm(Math.min(IDLE_DELAY, Math.max(0, m.lastEditAt + IDLE_DELAY - now())), {idleRevision:m.revision});
   }
   async function exclusive(fn) {
     const execute = async () => {
@@ -32,51 +44,57 @@ export function createAutoBackup({capture = cloudCapture, update = updateCloud, 
     if (globalThis.navigator?.locks) return navigator.locks.request('recipe-deck-cloud', execute);
     return execute();
   }
-  async function work() {
-    let c = await state();
-    if (!connected || !online() || c.meta.revision <= c.meta.acknowledgedRevision) return;
+  async function work({automatic = false, idleRevision} = {}) {
+    const eligible = m => dirty(m) && (!automatic || ready(m, now()) || idleRevision === m.revision);
+    let m = await state();
+    if (!connected || !online() || !eligible(m)) return;
     await exclusive(async () => {
-      c = await capture();
-      if (!connected || c.meta.revision <= c.meta.acknowledgedRevision) return;
-      let attempt = c.meta.attempt;
+      const c = await capture(); m = c.meta;
+      if (!connected || !online() || !eligible(m)) return;
+      let attempt = m.attempt;
       if (!attempt) {
-        const backup = await makeBackup(snapshotOf(c), c.meta.deviceId);
-        attempt = await update(m => {
-          if (!m.attempt) m.attempt = {revision: c.meta.revision, backup};
-          return m.attempt;
+        const backup = await makeBackup(snapshotOf(c), m.deviceId);
+        attempt = await update(current => {
+          if (!current.attempt) current.attempt = {revision:m.revision, textChanges:m.textChanges ?? 0, backup};
+          return current.attempt;
         });
       }
       await state('クラウドへ保存中…');
-      // Keep the immutable ID and payload on failure or a lost response.
       await upload(attempt.backup);
-      await update(m => {
-        if (m.attempt?.backup.backup_id !== attempt.backup.backup_id) throw Error('保存待ちデータが変更されました');
-        m.acknowledgedRevision = Math.max(m.acknowledgedRevision, attempt.revision);
-        m.lastSentAt = new Date().toISOString(); m.attempt = null;
+      await update(current => {
+        if (current.attempt?.backup.backup_id !== attempt.backup.backup_id) throw Error('保存待ちデータが変更されました');
+        current.acknowledgedRevision = Math.max(current.acknowledgedRevision, attempt.revision);
+        current.acknowledgedTextChanges = Math.max(current.acknowledgedTextChanges ?? 0, attempt.textChanges ?? 0);
+        current.lastSentAt = new Date().toISOString(); current.attempt = null;
       });
       retryCount = 0; await state('');
     });
   }
-  async function run() {
-    clearTimer(timer); timer = null;
+  async function run(options) {
+    ++planVersion; clearTimer(timer); timer = null;
     if (running) return running;
-    running = work().catch(async error => {
+    let failed = false;
+    running = work(options).catch(async error => {
+      failed = true;
       if (error.status === 401) connected = false;
       await state(error.message || '通信できません。端末に保存して再送を待っています');
-      if (connected && online()) schedule(Math.min(retryDelay * 2 ** retryCount++, 300000));
+      if (connected && online()) arm(Math.min(retryDelay * 2 ** retryCount++, 300000));
     }).finally(async () => {
-      running = null;
-      const c = await state();
-      if (!timer && connected && online() && c.meta.revision > c.meta.acknowledgedRevision) schedule();
+      running = null; await state();
+      if (!failed || !timer) await plan();
     });
     return running;
   }
-  const unsubscribe = subscribe(() => { retryCount = 0; schedule(); void state(); });
+  const unsubscribe = subscribe(() => { retryCount = 0; void plan(); });
   return {
     run,
-    async setConnected(value) { if (value) lastMessage = ''; connected = value; retryCount = 0; if (value) schedule(0); else { clearTimer(timer); timer = null; } await state(); },
-    refresh: () => state(),
+    async flushPending() {
+      await update(m => { if (dirty(m)) m.immediateRevision = m.revision; });
+      return run();
+    },
+    async setConnected(value) { if (value) lastMessage = ''; connected = value; retryCount = 0; await plan(); },
+    refresh: plan,
     async exclusive(fn) { if (running) await running; return exclusive(fn); },
-    stop() { stopped = true; clearTimer(timer); unsubscribe(); }
+    stop() { stopped = true; ++planVersion; clearTimer(timer); unsubscribe(); }
   };
 }
