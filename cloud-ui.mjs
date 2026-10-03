@@ -15,6 +15,9 @@ export async function initCloud({flush, restored, toast, download}) {
     $('cloudPrevious').textContent = '前回のクラウド保存：' + date(s.lastSentAt);
     $('cloudError').textContent = s.message || '';
     $('cloudRetry').disabled = !s.connected || !pending || s.sending;
+    if (api.hosted() && !s.connected) {
+      session = null; $('cloudLoginForm').hidden = false; $('cloudConnected').hidden = true;
+    }
   }});
   $('cloudSummary').addEventListener('click', () => $('settingsShortcut').click());
   if (!api.hosted()) {
