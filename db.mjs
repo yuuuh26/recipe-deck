@@ -1,3 +1,4 @@
+import {changedCharacters} from './cloud-policy.mjs';
 const NAME = 'recipe-deck';
 const VERSION = 2;
 const listeners = new Set();
@@ -5,7 +6,7 @@ const channel = typeof window !== 'undefined' && typeof BroadcastChannel !== 'un
 channel?.addEventListener('message', () => listeners.forEach(fn => fn()));
 export const onDataChanged = fn => { listeners.add(fn); return () => listeners.delete(fn); };
 const announce = () => { listeners.forEach(fn => fn()); channel?.postMessage('changed'); };
-export const defaultCloudState = () => ({key: 'main', revision: 0, acknowledgedRevision: 0, deviceId: crypto.randomUUID(), attempt: null, lastSentAt: null});
+export const defaultCloudState = () => ({key: 'main', revision: 0, acknowledgedRevision: 0, deviceId: crypto.randomUUID(), attempt: null, lastSentAt: null, textChanges: 0, acknowledgedTextChanges: 0, immediateRevision: 0, lastEditAt: null});
 let database;
 
 export async function openDatabase() {
@@ -37,7 +38,7 @@ export async function all(store) {
   });
 }
 
-export async function write(stores, callback, {expectedRevision, recovery} = {}) {
+export async function write(stores, callback, {expectedRevision, recovery, recipe} = {}) {
   const db = await openDatabase();
   const changed = stores.includes('recipes') || stores.includes('tags');
   return new Promise((resolve, reject) => {
@@ -55,14 +56,29 @@ export async function write(stores, callback, {expectedRevision, recovery} = {})
         cloud.put({key: 'recovery', data: recovery});
         meta.attempt = null;
       }
-      meta.revision++;
-      cloud.put(meta);
-      apply();
+      const recordChange = previous => {
+        // Existing unsent data from v1.3.0 must retain its original eligibility.
+        if (meta.textChanges === undefined && meta.revision > meta.acknowledgedRevision) meta.immediateRevision = meta.revision;
+        meta.textChanges ??= 0; meta.acknowledgedTextChanges ??= 0;
+        meta.revision++; meta.lastEditAt = Date.now();
+        if (recipe) {
+          meta.textChanges += changedCharacters(previous?.recipeText, recipe.recipeText) + changedCharacters(previous?.notes, recipe.notes);
+          if ((previous?.rating ?? null) !== recipe.rating || JSON.stringify(previous?.tagIds ?? []) !== JSON.stringify(recipe.tagIds)) meta.immediateRevision = meta.revision;
+        } else meta.immediateRevision = meta.revision;
+        cloud.put(meta); apply();
+      };
+      if (recipe) {
+        const previous = tx.objectStore('recipes').get(recipe.id);
+        previous.onsuccess = () => recordChange(previous.result);
+      } else recordChange();
     };
   });
 }
 
-export const putRecipe = recipe => write(['recipes'], tx => tx.objectStore('recipes').put(recipe));
+export const putRecipe = (recipe, settings) => write(settings ? ['recipes', 'settings'] : ['recipes'], tx => {
+  tx.objectStore('recipes').put(recipe);
+  if (settings) tx.objectStore('settings').put({key: 'main', ...settings});
+}, {recipe});
 export const putSettings = settings => write(['settings'], tx => tx.objectStore('settings').put({key: 'main', ...settings}));
 export const removeRecipe = id => write(['recipes'], tx => tx.objectStore('recipes').delete(id));
 export const putTag = tag => write(['tags'], tx => tx.objectStore('tags').put(tag));
@@ -102,5 +118,15 @@ export async function updateCloud(callback) {
       catch (error) { tx.abort(); reject(error); }
     };
     tx.oncomplete = () => resolve(result); tx.onabort = tx.onerror = () => reject(tx.error);
+  });
+}
+
+// Scheduling and status need only metadata, not a clone of every recipe.
+export async function cloudMeta() {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('cloud', 'readonly'), r = tx.objectStore('cloud').get('main');
+    r.onsuccess = () => resolve(r.result || defaultCloudState());
+    r.onerror = () => reject(r.error);
   });
 }

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import {write, putRecipe, putTag, putSettings, removeRecipe, removeTagEverywhere, replaceAll, cloudCapture, updateCloud, all} from '../db.mjs';
 import {createAutoBackup, snapshotOf} from '../cloud-auto.mjs';
+import {changedCharacters, pendingCharacters} from '../cloud-policy.mjs';
 import {createBackup, validateBackup} from '../cloud-snapshot.mjs';
 const settings = {createdSinceBackup:0,lastBackupAt:null,lastBackupRecipeCount:0};
 const recipe = {id:'r',title:'カレー',recipeText:'カレー\n材料',notes:'',rating:null,tagIds:[],createdAt:'2026-10-03T00:00:00.000Z',updatedAt:'2026-10-03T00:00:00.000Z'};
@@ -12,10 +13,10 @@ async function reset() {
     tx.objectStore('settings').put({key:'main',...settings});
   });
 }
-function harness(upload = async () => {}) {
+function harness(upload = async () => {}, options = {}) {
   let sequence = 0; const timers = new Map(), sent = [], states = [];
   const auto = createAutoBackup({upload:async b => {sent.push(b);await upload(b)},notify:s=>states.push(s),
-    setTimer:(fn,ms)=>{timers.set(++sequence,{fn,ms});return sequence},clearTimer:id=>timers.delete(id)});
+    setTimer:(fn,ms)=>{const id=++sequence;timers.set(id,{fn:()=>{timers.delete(id);return fn()},ms});return id},clearTimer:id=>timers.delete(id),...options});
   return {auto,timers,sent,states};
 }
 test('閲覧とファイルバックアップ日時の記録は送信せず、変更だけをまとめて保存する', async () => {
@@ -26,7 +27,7 @@ test('閲覧とファイルバックアップ日時の記録は送信せず、�
     await h.auto.run(); assert.equal(h.sent.length,0);
     await putRecipe(recipe); await putRecipe({...recipe,notes:'甘口にする'});
     await putTag({id:'t',name:'定番',createdAt:recipe.createdAt});
-    assert.equal(h.timers.size,1);
+    await h.auto.refresh(); assert.equal(h.timers.size,1);
     await h.auto.run(); assert.equal(h.sent.length,1);
     const s = await validateBackup(h.sent[0]); assert.equal(s.revision,3); assert.equal(s.data.recipes[0].notes,'甘口にする'); assert.equal(s.data.tags.length,1);
     const c = await cloudCapture(); assert.equal(c.meta.acknowledgedRevision,3); assert.ok(c.meta.lastSentAt);assert.equal(c.meta.attempt,null);
@@ -87,4 +88,81 @@ test('失敗したローカル保存は変更番号を進めず、復元は同�
 test('別アプリ・破損内容・不一致件数をクラウド送信前に拒否する',async()=>{
   await reset();await putRecipe(recipe);const b=await createBackup(snapshotOf(await cloudCapture()));
   for(const changed of [{...b,app_id:'karaoke-performance-log'},{...b,record_count:10},{...b,backup_json:'broken'},{...b,sha256:'0'.repeat(64)}])await assert.rejects(validateBackup(changed));
+});
+
+test('10文字に届くまでは1分待ち、累計10文字で3秒待ちに切り替える',async()=>{
+  await reset();const h=harness();
+  try {
+    await h.auto.setConnected(true);
+    await putRecipe({...recipe,title:'味噌汁',recipeText:'味噌汁'});await h.auto.refresh();
+    assert.equal(pendingCharacters((await cloudCapture()).meta),3);
+    assert.equal(h.sent.length,0);assert.ok([...h.timers.values()][0].ms>59000);
+    // Equal-length replacements count even when the total length is unchanged.
+    await putRecipe({...recipe,title:'スープ',recipeText:'スープ'});await h.auto.refresh();
+    assert.equal(pendingCharacters((await cloudCapture()).meta),6);assert.ok([...h.timers.values()][0].ms>59000);
+    await putRecipe({...recipe,title:'スープ',recipeText:'スープ',notes:'塩を減らす'});await h.auto.refresh();
+    assert.equal(pendingCharacters((await cloudCapture()).meta),11);assert.equal([...h.timers.values()][0].ms,3000);
+    await [...h.timers.values()][0].fn();assert.equal(h.sent.length,1);assert.equal(pendingCharacters((await cloudCapture()).meta),0);
+  }finally{h.auto.stop()}
+});
+test('短い修正は1分の無操作、画面を離れる操作、再起動後の期限到達で保存する',async()=>{
+  await reset();const h=harness();
+  try {
+    await h.auto.setConnected(true);await putRecipe({...recipe,title:'味噌汁',recipeText:'味噌汁'});await h.auto.refresh();
+    await [...h.timers.values()][0].fn();assert.equal(h.sent.length,1);
+    await putRecipe({...recipe,title:'味噌汁',recipeText:'味噌汁',notes:'減塩'});await h.auto.refresh();
+    assert.ok([...h.timers.values()][0].ms>59000);
+    await h.auto.flushPending();assert.equal(h.sent.length,2);assert.equal(h.timers.size,0);
+    await putRecipe({...recipe,title:'味噌汁',recipeText:'味噌汁',notes:'少し減塩'});h.auto.stop();
+    const restarted=harness(async()=>{}, {now:()=>Date.now()+61000});
+    try {await restarted.auto.setConnected(true);assert.equal([...restarted.timers.values()][0].ms,0);await [...restarted.timers.values()][0].fn();assert.equal(restarted.sent.length,1)}finally{restarted.auto.stop()}
+  }finally{h.auto.stop()}
+});
+test('送信中に加えた少量の変更は文字数と1分待ちを引き継ぐ',async()=>{
+  await reset();await putRecipe({...recipe,recipeText:'カレー\n材料は鶏肉を用意して作る'});
+  let finish;const block=new Promise(r=>finish=r),h=harness(async()=>block);
+  try {
+    await h.auto.setConnected(true);const sending=h.auto.run();while(!h.sent.length)await new Promise(r=>setImmediate(r));
+    await putRecipe({...recipe,recipeText:'カレー\n材料は鶏肉を用意して作る',notes:'減塩'});finish();await sending;
+    assert.equal(pendingCharacters((await cloudCapture()).meta),2);assert.ok([...h.timers.values()][0].ms>59000);
+    await h.auto.flushPending();assert.equal(h.sent.length,2);assert.equal(pendingCharacters((await cloudCapture()).meta),0);
+  }finally{h.auto.stop()}
+});
+test('タグ・評価・削除・インポートは文字数なしでも3秒で送信を予約する',async()=>{
+  await reset();await putRecipe(recipe);const h=harness();
+  try {
+    await h.auto.setConnected(true);await h.auto.run();
+    for(const mutate of [
+      ()=>putRecipe({...recipe,rating:8}),
+      ()=>putTag({id:'t',name:'時短',createdAt:recipe.createdAt}),
+      ()=>putRecipe({...recipe,rating:8,tagIds:['t']}),
+      ()=>removeRecipe(recipe.id),
+      async()=>replaceAll(snapshotOf(await cloudCapture()).data)
+    ]) {
+      await mutate();await h.auto.refresh();assert.equal([...h.timers.values()][0].ms,3000);
+      await [...h.timers.values()][0].fn();
+    }
+    assert.equal(h.sent.length,6);
+  }finally{h.auto.stop()}
+});
+test('通常の判定と閲覧では全レシピを読み込まず、旧版の未送信データを保持する',async()=>{
+  await reset();let captures=0;const h=harness(async()=>{}, {capture:async()=>{captures++;return cloudCapture()}});
+  try {
+    await h.auto.setConnected(true);await h.auto.refresh();assert.equal(captures,0);
+    await putRecipe(recipe);await h.auto.refresh();assert.equal(captures,0);
+    await updateCloud(m=>{delete m.textChanges;delete m.lastEditAt;delete m.immediateRevision});await h.auto.refresh();
+    assert.equal([...h.timers.values()][0].ms,3000);await [...h.timers.values()][0].fn();assert.equal(captures,1);assert.equal(h.sent.length,1);
+  }finally{h.auto.stop()}
+});
+test('文字数は追加・削除・置換・離れた位置の修正・絵文字を正しく数える',()=>{
+  assert.equal(changedCharacters('塩','塩を減らす'),4);
+  assert.equal(changedCharacters('塩を減らす','塩'),4);
+  assert.equal(changedCharacters('abc','xyz'),3);
+  assert.equal(changedCharacters('a'+'.'.repeat(1000)+'b','x'+'.'.repeat(1000)+'y'),2);
+  assert.equal(changedCharacters('','🍳味噌汁'),4);
+  assert.equal(changedCharacters('あ'.repeat(10000),'い'.repeat(10000)),10);
+  // Compare with an independent full edit-distance oracle on small strings.
+  const oracle=(a,b)=>{a=Array.from(a);b=Array.from(b);const d=Array.from({length:a.length+1},(_,i)=>Array.from({length:b.length+1},(_,j)=>i===0?j:j===0?i:0));for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return Math.min(10,d[a.length][b.length])};
+  const values=['','a','ab','abc','acb','bca','abcbabca','い🍳あ🍳','abababababab','babababababa'];
+  for(const a of values)for(const b of values)assert.equal(changedCharacters(a,b),oracle(a,b));
 });
