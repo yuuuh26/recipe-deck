@@ -37,3 +37,5 @@ main{padding:0 20px}.page{display:none}.page.active{display:block}.hero{border-r
 .cloud-row .button {font-size:12px;flex-shrink:0;padding:10px;}
 .cloud-preview {white-space:pre-wrap;line-height:1.8;}
 [hidden] {display:none !important;}
+
+.cloud-panel input {width:100%;border:1px solid #d9d7c9;background:#fffefb;color:#293629;border-radius:16px;padding:14px 16px;min-height:48px;}

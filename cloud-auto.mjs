@@ -12,7 +12,7 @@ export function snapshotOf(captured) {
 export function createAutoBackup({capture = cloudCapture, update = updateCloud, upload = uploadBackup,
   makeBackup = createBackup, subscribe = onDataChanged, online = () => globalThis.navigator?.onLine !== false,
   notify = () => {}, delay = 3000, retryDelay = 15000, setTimer = setTimeout, clearTimer = clearTimeout} = {}) {
-  let connected = false, running = null, timer, retryCount = 0, stopped = false, lastMessage = ''; 
+  let connected = false, running = null, timer, retryCount = 0, stopped = false, lastMessage = '';
   const owner = crypto.randomUUID();
   async function state(message) { if (message !== undefined) lastMessage = message; const c = await capture(); notify({...c.meta, connected, sending: !!running, message: lastMessage}); return c; }
   function schedule(ms = delay) {
