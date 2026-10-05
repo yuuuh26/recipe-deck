@@ -35,9 +35,9 @@
       <section id="editor" class="page" aria-label="レシピ編集">
         <div class="back-row"><button id="backHome" class="back-button">← 一覧へ戻る</button><span id="saveStatus" class="save-state" role="status">未保存</span></div>
         <p class="eyebrow">RECIPE NOTE</p><h1 id="editorTitle" class="page-title">新しいレシピ</h1>
+        <button id="openCookingMode" class="button outline full cooking-open" type="button"><span aria-hidden="true">▣</span> 料理モードで見る</button>
         <label class="field-heading" for="recipeText">レシピ本文 <small>最初の空行でない行がタイトルになります</small></label>
         <textarea id="recipeText" rows="14" placeholder="料理名&#10;&#10;【材料】&#10;&#10;【作り方】" spellcheck="false"></textarea>
-        <button id="openCookingMode" class="button outline full cooking-open" type="button"><span aria-hidden="true">▣</span> 料理モードで見る</button>
         <div class="panel"><div class="field-heading">味の評価 <small>7点以上は「また食べたい」</small></div><div id="ratings" class="rating-grid" role="group" aria-label="味の評価"></div><button id="clearRating" class="text-button subtle">評価を解除</button></div>
         <div class="panel"><div class="field-heading">タグ <small id="tagCounter">0 / 3</small></div><div id="editorTags" class="chips"></div><p class="footnote">タグは最大3個まで設定できます。</p><button id="createTagHere" class="text-button">＋ 新しいタグを作成</button></div>
         <label class="field-heading" for="notes">備考 <small>次回の工夫や家族の感想など</small></label><textarea id="notes" rows="5" placeholder="次回は少し味噌を減らす、など"></textarea>
