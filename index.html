@@ -40,11 +40,12 @@
       </section>
 
       <section id="editor" class="page" aria-label="レシピ編集">
-        <div class="back-row"><button id="backHome" class="back-button">← 一覧へ戻る</button><span id="saveStatus" class="save-state" role="status">未保存</span></div>
-        <p class="eyebrow">RECIPE NOTE</p><h1 id="editorTitle" class="page-title">新しいレシピ</h1>
+        <div class="editor-caption"><p class="eyebrow">RECIPE NOTE</p><span id="saveStatus" class="save-state" role="status">未保存</span></div>
+        <h1 id="editorTitle" class="page-title">新しいレシピ</h1>
         <button id="openCookingMode" class="button outline full cooking-open" type="button"><span aria-hidden="true">▣</span> 料理モードで見る</button>
-        <label class="field-heading" for="recipeText">レシピ本文 <small>最初の空行でない行がタイトルになります</small></label>
-        <textarea id="recipeText" rows="14" placeholder="料理名&#10;&#10;【材料】&#10;&#10;【作り方】" spellcheck="false"></textarea>
+        <div class="recipe-text-heading"><label class="field-heading" for="recipeText">レシピ本文</label><button id="backHome" class="editor-home-button" type="button">ホーム画面へ戻る</button></div>
+        <p id="recipeTextHint" class="field-hint">最初の空行でない行がタイトルになります</p>
+        <textarea id="recipeText" rows="14" placeholder="料理名&#10;&#10;【材料】&#10;&#10;【作り方】" spellcheck="false" aria-describedby="recipeTextHint"></textarea>
         <div class="panel"><div class="field-heading">味の評価 <small>7点以上は「また食べたい」</small></div><div id="ratings" class="rating-grid" role="group" aria-label="味の評価"></div><button id="clearRating" class="text-button subtle">評価を解除</button></div>
         <div class="panel"><label class="field-heading" for="editorGenre">ジャンル <small>料理の種類を1つ選べます</small></label><select id="editorGenre"></select><button id="createGenreHere" class="text-button" type="button">＋ 新しいジャンルを作成</button></div>
         <div class="panel"><div class="field-heading">タグ <small id="tagCounter">0 / 3</small></div><div id="editorTags" class="chips"></div><p class="footnote">タグは最大3個まで設定できます。</p><button id="createTagHere" class="text-button">＋ 新しいタグを作成</button></div>
@@ -91,7 +92,7 @@
         </div>
         <div class="panel"><h2>タグ管理</h2><div id="managedTags" class="tag-manager"></div><button id="createTagInSettings" class="button outline full">＋ 新しいタグ</button></div>
         <div class="panel"><h2>ジャンル管理</h2><p class="help">鍋・炒め物・パスタなど、料理の種類を登録できます。</p><div id="managedGenres" class="tag-manager"></div><button id="createGenreInSettings" class="button outline full" type="button">＋ 新しいジャンル</button></div>
-        <div class="panel info"><h2>アプリ情報</h2><dl><div><dt>バージョン</dt><dd>v1.4.0</dd></div><div><dt>保存方式</dt><dd>端末内 + 変更時にクラウド</dd></div><div><dt>永続ストレージ</dt><dd id="storageState">確認中</dd></div><div><dt>公開 URL</dt><dd><button id="copyUrl" class="inline-link">URL をコピー</button></dd></div><div><dt>GitHub</dt><dd><button id="copyRepo" class="inline-link">リポジトリ URL をコピー</button></dd></div></dl><p class="footnote">端末に保存した変更は、接続後にクラウドへ自動保存します。未送信中のデータは端末内にだけ残るため、完全バックアップJSONも利用できます。</p></div>
+        <div class="panel info"><h2>アプリ情報</h2><dl><div><dt>バージョン</dt><dd>v1.4.1</dd></div><div><dt>保存方式</dt><dd>端末内 + 変更時にクラウド</dd></div><div><dt>永続ストレージ</dt><dd id="storageState">確認中</dd></div><div><dt>公開 URL</dt><dd><button id="copyUrl" class="inline-link">URL をコピー</button></dd></div><div><dt>GitHub</dt><dd><button id="copyRepo" class="inline-link">リポジトリ URL をコピー</button></dd></div></dl><p class="footnote">端末に保存した変更は、接続後にクラウドへ自動保存します。未送信中のデータは端末内にだけ残るため、完全バックアップJSONも利用できます。</p></div>
         <p class="signature">Made by YUU</p>
       </section>
     </main>

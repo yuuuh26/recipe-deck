@@ -57,3 +57,11 @@ main{padding:0 20px}.page{display:none}.page.active{display:block}.hero{border-r
 .tag-row span{overflow-wrap:anywhere;min-width:0}
 .tag-row button{flex-shrink:0}
 .export-search{margin-top:22px}
+.editor-caption{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px}
+#editor .page-title{margin:8px 0 12px}
+#editor .cooking-open{margin-top:0}
+.recipe-text-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0 4px}
+.recipe-text-heading .field-heading{margin:0}
+.editor-home-button{border:1px solid #bdc9b8;background:#f2f5ee;color:#345b42;border-radius:12px;padding:8px 11px;min-height:44px;flex-shrink:0;font-size:12px;font-weight:750}
+.editor-home-button:focus-visible{outline:3px solid #608968;outline-offset:2px}
+.field-hint{margin:0 0 8px;color:#889284;font-size:11px;line-height:1.5}
