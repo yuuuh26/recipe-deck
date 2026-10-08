@@ -1,5 +1,5 @@
 export const SCHEMA_VERSION = 1;
-export const APP_VERSION = 'v1.4.1';
+export const APP_VERSION = 'v1.4.2';
 export const DEFAULT_GENRES = ['鍋', '炒め物', 'パスタ'];
 export const titleOf = text => String(text).split(/\r?\n/).map(line => line.trim()).find(Boolean) || '無題のレシピ';
 export const byUpdated = (a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id);

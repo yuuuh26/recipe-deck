@@ -356,6 +356,7 @@ function wire() {
   $('settingsShortcut').addEventListener('click', () => navigate('settings'));
   $('addRecipe').addEventListener('click', () => openRecipe());
   $('backHome').addEventListener('click', () => navigate('home'));
+  $('backHomeBottom').addEventListener('click', () => navigate('home'));
   $('alertBackup').addEventListener('click', () => navigate('export'));
   $('keyword').addEventListener('input', renderHome);
   $('minimum').addEventListener('change', renderHome);
