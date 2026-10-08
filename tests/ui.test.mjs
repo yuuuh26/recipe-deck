@@ -41,6 +41,35 @@ test('実際の編集画面は本文変更後だけ送信し、閲覧・検索�
   assert.equal(sent.length,2);
   for(let i=0;i<100 && (await cloudCapture()).meta.acknowledgedRevision<2;i++)await tick(10);
   assert.equal((await cloudCapture()).meta.acknowledgedRevision,2);
+  assert.equal(document.getElementById('recipeSearch').open,false);
+  document.querySelector('.recipe-card').click();
+  const genre=document.getElementById('editorGenre'); genre.value='パスタ'; genre.dispatchEvent(new dom.window.Event('change'));
+  await tick(600); document.getElementById('backHome').click();
+  for(let i=0;i<100 && sent.length<3;i++)await tick(10);
+  assert.equal(sent.length,3);assert.equal(JSON.parse(sent[2].backup_json).data.recipes[0].genre,'パスタ');
+  assert.equal(document.querySelector('.genre-badge').textContent,'パスタ');
+  document.getElementById('recipeSearch').open=true;
+  const filterGenre=document.getElementById('filterGenre');filterGenre.value='genre:パスタ';filterGenre.dispatchEvent(new dom.window.Event('change'));
+  assert.equal(document.getElementById('resultCount').textContent,'1 件');assert.match(document.getElementById('searchSummary').textContent,/パスタ.*絞り込み中/);
+  document.getElementById('recipeSearch').open=false;
+  assert.match(document.getElementById('searchSummary').textContent,/パスタ/);
+  filterGenre.value='genre:鍋';filterGenre.dispatchEvent(new dom.window.Event('change'));
+  assert.equal(document.getElementById('resultCount').textContent,'0 件');
+  document.getElementById('clearSearch').click();
+  assert.equal(document.getElementById('resultCount').textContent,'1 件');assert.equal(document.getElementById('keyword').value,'');
+  assert.equal(sent.length,3);
+  document.querySelector('.recipe-card').click();globalThis.prompt=()=> '丼物'; document.getElementById('createGenreHere').click();
+  await tick(650);document.getElementById('backHome').click();
+  assert.equal((await cloudCapture()).recipes[0].genre,'丼物');
+  assert.ok((await cloudCapture()).settings[0].genreNames.includes('丼物'));
+  document.querySelector('[data-page="export"]').click();
+  assert.ok([...document.getElementById('exportGenre').options].some(option=>option.value==='genre:丼物'));
+  for(let i=0;i<100;i++) {
+    const captured=await cloudCapture();if(captured.meta.acknowledgedRevision===captured.meta.revision)break;
+    await tick(20);
+  }
+  const captured=await cloudCapture();assert.equal(captured.meta.acknowledgedRevision,captured.meta.revision);
+  await tick(30);
   dom.window.close();
 });
 test('サービスワーカーは認証やバックアップのGETをキャッシュに渡さない',async()=>{

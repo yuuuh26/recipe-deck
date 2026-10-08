@@ -1,6 +1,6 @@
 import {initCloud} from './cloud-ui.mjs';
-import {titleOf, filterRecipes, questionText, aiExport, backupExport, validateBackup} from './model.mjs';
-import {all, putRecipe, putSettings, removeRecipe, putTag, removeTagEverywhere, replaceAll} from './db.mjs';
+import {titleOf, filterRecipes, questionText, aiExport, backupExport, validateBackup, DEFAULT_GENRES} from './model.mjs';
+import {all, putRecipe, putSettings, removeRecipe, putTag, removeTagEverywhere, putGenreSettings, removeGenreEverywhere, replaceAll} from './db.mjs';
 
 const $ = id => document.getElementById(id);
 const settingsDefaults = {lastBackupRecipeCount: 0, lastBackupAt: null, createdSinceBackup: 0};
@@ -32,14 +32,25 @@ function renderMinimum(select) {
     select.add(option);
   }
 }
-function homeFilter() { return {keyword: $('keyword').value, minimum: Number($('minimum').value), tagIds: [...homeTags]}; }
-function exportFilter() { return {keyword: $('exportKeyword').value, minimum: Number($('exportMinimum').value), tagIds: [...outputTags]}; }
+const genreNames = () => [...new Set([...(settings.genreNames ?? DEFAULT_GENRES), ...recipes.map(recipe => recipe.genre).filter(Boolean)])];
+const genreFilter = select => select.value === 'all' ? null : select.value === 'none' ? '' : select.value.slice(6);
+function renderGenreSelect(select, filtering = false, selected = select.value) {
+  select.replaceChildren(new Option(filtering ? 'すべて' : '未設定', filtering ? 'all' : ''));
+  if (filtering) select.add(new Option('未設定', 'none'));
+  for (const name of genreNames()) select.add(new Option(name, filtering ? 'genre:' + name : name));
+  if ([...select.options].some(option => option.value === selected)) select.value = selected;
+}
+function homeFilter() { return {keyword: $('keyword').value, minimum: Number($('minimum').value), tagIds: [...homeTags], genre: genreFilter($('filterGenre'))}; }
+function exportFilter() { return {keyword: $('exportKeyword').value, minimum: Number($('exportMinimum').value), tagIds: [...outputTags], genre: genreFilter($('exportGenre'))}; }
+function clearHomeSearch() {
+  $('keyword').value = ''; $('minimum').value = '0'; $('filterGenre').value = 'all'; homeTags.clear(); renderHome();
+}
 function showPage(next) {
   page = next;
   document.querySelectorAll('.page').forEach(node => node.classList.toggle('active', node.id === next));
   document.querySelectorAll('.bottom-nav button').forEach(node => node.classList.toggle('selected', node.dataset.page === next || (next === 'editor' && node.dataset.page === 'home')));
   if (next === 'home') renderHome();
-  if (next === 'settings') renderTags();
+  if (next === 'settings') { renderTags(); renderGenres(); }
   if (next === 'export') renderExport();
   scrollTo({top: 0, behavior: 'instant'});
 }
@@ -68,8 +79,16 @@ function renderChips(container, selected, onToggle, limit = null) {
   }
 }
 function renderHome() {
+  renderGenreSelect($('filterGenre'), true);
   const found = filterRecipes(recipes, homeFilter());
   $('resultCount').textContent = found.length + ' 件';
+  const filter = homeFilter(), conditions = [];
+  if (filter.keyword.trim()) conditions.push('「' + filter.keyword.trim() + '」');
+  if (filter.minimum) conditions.push(filter.minimum + '点以上');
+  if (filter.genre !== null) conditions.push(filter.genre || 'ジャンル未設定');
+  if (homeTags.size) conditions.push('タグ' + homeTags.size + '個');
+  $('searchSummary').textContent = conditions.length ? conditions.join('・') + 'で絞り込み中' : 'キーワード・点数・タグ・ジャンル';
+  $('recipeSearch').classList.toggle('filtering', conditions.length > 0);
   renderChips($('filterTags'), homeTags, tagId => {
     homeTags.has(tagId) ? homeTags.delete(tagId) : homeTags.add(tagId); renderHome();
   });
@@ -80,6 +99,7 @@ function renderHome() {
     card.append(element('h3', '', recipe.title));
     const meta = element('div', 'meta');
     meta.append(element('span', 'rating-badge' + (recipe.rating >= 7 ? ' liked' : ''), recipe.rating === null ? '評価 —' : '評価 ' + recipe.rating + ' / 10'));
+    if (recipe.genre) meta.append(element('span', 'genre-badge', recipe.genre));
     for (const tagId of recipe.tagIds) {
       const tag = tags.find(item => item.id === tagId);
       if (tag) meta.append(element('span', 'mini-chip', tag.name));
@@ -106,6 +126,7 @@ function renderEditor() {
   status(active.recipeText.trim() ? '保存済み' : '本文を入力してください');
 }
 function renderEditorControls() {
+  renderGenreSelect($('editorGenre'), false, active.genre || '');
   $('ratings').querySelectorAll('button').forEach((button, index) => {
     button.classList.toggle('selected', active.rating === index + 1);
     button.setAttribute('aria-pressed', String(active.rating === index + 1));
@@ -121,7 +142,7 @@ function renderEditorControls() {
 function openRecipe(recipe = null) {
   active = recipe ? structuredClone(recipe) : {
     id: id('recipe'), title: '無題のレシピ', recipeText: '', rating: null,
-    tagIds: [], notes: '', createdAt: now(), updatedAt: now()
+    tagIds: [], genre: '', notes: '', createdAt: now(), updatedAt: now()
   };
   revision = savedRevision = 0; editorChanged = false; renderEditor(); showPage('editor');
   if (!recipe) $('recipeText').focus();
@@ -155,7 +176,7 @@ async function persist() {
   saveQueue = saveQueue.catch(() => {}).then(async () => {
     if (currentRevision <= savedRevision) return;
     const previous = recipes.find(item => item.id === snapshot.id);
-    if (previous && ['recipeText', 'notes', 'rating'].every(k => previous[k] === snapshot[k]) && JSON.stringify(previous.tagIds) === JSON.stringify(snapshot.tagIds)) {
+    if (previous && ['recipeText', 'notes', 'rating'].every(k => previous[k] === snapshot[k]) && JSON.stringify(previous.tagIds) === JSON.stringify(snapshot.tagIds) && (previous.genre || '') === (snapshot.genre || '')) {
       savedRevision = currentRevision; if (revision === currentRevision) status('保存済み'); return;
     }
     const isNew = !previous;
@@ -179,7 +200,7 @@ async function persist() {
 }
 async function flush() {
   if (!active || !active.recipeText.trim()) {
-    if (active && revision > 0 && (active.notes || active.rating !== null || active.tagIds.length)) {
+    if (active && revision > 0 && (active.notes || active.rating !== null || active.tagIds.length || active.genre)) {
       toast('保存するにはレシピ本文を入力してください'); return false;
     }
     return true;
@@ -199,6 +220,38 @@ async function makeTag() {
     if (page === 'editor' && active.tagIds.length < 3) { active.tagIds.push(tag.id); changed(); renderEditorControls(); }
     renderHome(); renderTags(); toast('タグを作成しました');
   } catch { toast('タグを保存できませんでした'); }
+}
+async function makeGenre() {
+  const name = prompt('新しいジャンル名（例：煮物、スープ、丼物）');
+  if (name === null) return;
+  const trimmed = name.trim();
+  if (!trimmed || trimmed.length > 50) { toast('ジャンル名は1〜50文字で入力してください'); return; }
+  if (genreNames().includes(trimmed)) { toast('同じ名前のジャンルが既にあります'); return; }
+  try {
+    if (page === 'editor' && !await flush()) return;
+    const next = {...settings, genreNames: [...genreNames(), trimmed]};
+    await putGenreSettings(next); settings = next;
+    if (page === 'editor') { active.genre = trimmed; changed(); renderEditorControls(); }
+    renderHome(); renderGenres(); toast('ジャンルを作成しました');
+  } catch { toast('ジャンルを保存できませんでした'); }
+}
+function renderGenres() {
+  const manager = $('managedGenres'); manager.replaceChildren();
+  if (!genreNames().length) manager.append(element('p', 'help', 'ジャンルはまだありません'));
+  for (const name of genreNames()) {
+    const row = element('div', 'tag-row'); row.append(element('span', '', name));
+    const button = element('button', '', '削除'); button.type = 'button';
+    button.addEventListener('click', async () => {
+      if (!confirm('「' + name + '」ジャンルを削除しますか？\nこのジャンルのレシピは未設定になります。本文やタグは残ります。')) return;
+      try {
+        const updatedAt = now(), next = {...settings, genreNames: genreNames().filter(item => item !== name)};
+        await removeGenreEverywhere(name, recipes, next, updatedAt);
+        settings = next; recipes = recipes.map(recipe => recipe.genre === name ? {...recipe, genre: '', updatedAt} : recipe);
+        renderHome(); renderGenres(); toast('ジャンルを削除しました');
+      } catch { toast('ジャンルを削除できませんでした'); }
+    });
+    row.append(button); manager.append(row);
+  }
 }
 function renderTags() {
   const manager = $('managedTags'); manager.replaceChildren();
@@ -221,6 +274,7 @@ function renderTags() {
   }
 }
 function renderExport() {
+  renderGenreSelect($('exportGenre'), true);
   renderChips($('exportTags'), outputTags, tagId => {
     outputTags.has(tagId) ? outputTags.delete(tagId) : outputTags.add(tagId); renderExport();
   });
@@ -282,7 +336,7 @@ async function importBackup(file) {
     if (!confirm('現在のデータ：' + recipes.length + ' 件\nバックアップ：' + data.recipeCount + ' 件\n\n復元すると現在のデータが置き換えられます。続けますか？')) return;
     await replaceAll(data);
     recipes = data.recipes; tags = data.tags; settings = {...settingsDefaults, ...data.settings};
-    homeTags.clear(); outputTags.clear(); active = null; $('backupConfirmation').classList.add('hidden');
+    clearHomeSearch(); outputTags.clear(); $('exportGenre').value = 'all'; active = null; $('backupConfirmation').classList.add('hidden');
     $('importFile').value = ''; showPage('home');
     toast(recipes.length + ' 件のレシピと ' + tags.length + ' 件のタグを復元しました');
   } catch (error) { toast(error.message || '復元に失敗しました。元のデータは変更していません'); }
@@ -305,6 +359,11 @@ function wire() {
   $('alertBackup').addEventListener('click', () => navigate('export'));
   $('keyword').addEventListener('input', renderHome);
   $('minimum').addEventListener('change', renderHome);
+  $('filterGenre').addEventListener('change', renderHome);
+  $('clearSearch').addEventListener('click', clearHomeSearch);
+  $('editorGenre').addEventListener('change', event => { active.genre = event.target.value; changed(); });
+  $('createGenreHere').addEventListener('click', makeGenre);
+  $('createGenreInSettings').addEventListener('click', makeGenre);
   $('recipeText').addEventListener('input', event => { active.recipeText = event.target.value; $('editorTitle').textContent = titleOf(active.recipeText); changed(); });
   $('openCookingMode').addEventListener('click', async () => { if (await flush()) openCookingMode(); });
   $('closeCookingMode').addEventListener('click', () => $('cookingDialog').close());
@@ -364,7 +423,7 @@ async function init() {
     showPage('home'); storageStatus();
     cloud = await initCloud({flush, toast, download: downloadJson, restored: async data => {
       recipes = data.recipes; tags = data.tags; settings = {...settingsDefaults, ...data.settings};
-      homeTags.clear(); outputTags.clear(); active = null; showPage('home');
+      clearHomeSearch(); outputTags.clear(); $('exportGenre').value = 'all'; active = null; showPage('home');
     }});
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('./service-worker.js').catch(() => {});
   } catch (error) {

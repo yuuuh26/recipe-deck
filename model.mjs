@@ -1,14 +1,16 @@
 export const SCHEMA_VERSION = 1;
-export const APP_VERSION = 'v1.3.1';
+export const APP_VERSION = 'v1.4.0';
+export const DEFAULT_GENRES = ['鍋', '炒め物', 'パスタ'];
 export const titleOf = text => String(text).split(/\r?\n/).map(line => line.trim()).find(Boolean) || '無題のレシピ';
 export const byUpdated = (a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id);
 
-export function filterRecipes(recipes, {keyword = '', minimum = 0, tagIds = []} = {}) {
+export function filterRecipes(recipes, {keyword = '', minimum = 0, tagIds = [], genre = null} = {}) {
   const query = keyword.trim().toLocaleLowerCase();
   return recipes.filter(recipe =>
     (!query || [recipe.title, recipe.recipeText, recipe.notes].some(value => value.toLocaleLowerCase().includes(query))) &&
     (!minimum || (recipe.rating !== null && recipe.rating >= Number(minimum))) &&
-    tagIds.every(id => recipe.tagIds.includes(id))
+    tagIds.every(id => recipe.tagIds.includes(id)) &&
+    (genre === null || (recipe.genre || '') === genre)
   ).sort(byUpdated);
 }
 
@@ -17,6 +19,7 @@ export function questionText(recipe, tags) {
   output += '\n\n【味の評価】\n' + (recipe.rating === null ? '未評価' : recipe.rating + ' / 10');
   const names = recipe.tagIds.map(id => tags.find(tag => tag.id === id)?.name).filter(Boolean);
   if (names.length) output += '\n\n【タグ】\n' + names.join(' / ');
+  if (recipe.genre) output += '\n\n【ジャンル】\n' + recipe.genre;
   if (recipe.notes) output += '\n\n【備考】\n' + recipe.notes;
   return output + '\n\n以上のレシピについて質問があるので、答えてください。';
 }
@@ -28,7 +31,7 @@ export function aiExport(recipes, tags, exportedAt = new Date().toISOString()) {
     recipes: recipes.map(recipe => ({
       title: recipe.title, recipeText: recipe.recipeText, rating: recipe.rating,
       tags: recipe.tagIds.map(id => tags.find(tag => tag.id === id)?.name).filter(Boolean),
-      notes: recipe.notes
+      notes: recipe.notes, genre: recipe.genre || ''
     }))
   };
 }
@@ -45,6 +48,7 @@ export function backupExport(recipes, tags, settings, exportedAt = new Date().to
 
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const validDate = value => typeof value === 'string' && !Number.isNaN(Date.parse(value));
+const validGenre = value => typeof value === 'string' && value === value.trim() && value.length <= 50;
 
 export function validateBackup(data) {
   const fail = reason => { throw new Error('バックアップを読み込めません: ' + reason); };
@@ -68,10 +72,14 @@ export function validateBackup(data) {
       typeof recipe.notes !== 'string' || !Array.isArray(recipe.tagIds) || recipe.tagIds.length > 3 ||
       new Set(recipe.tagIds).size !== recipe.tagIds.length ||
       recipe.tagIds.some(id => !tagIds.has(id)) ||
+      (recipe.genre !== undefined && !validGenre(recipe.genre)) ||
       !validDate(recipe.createdAt) || !validDate(recipe.updatedAt)) fail('レシピまたはタグの関連が不正です');
     recipeIds.add(recipe.id);
   }
   const s = data.settings;
+  if (s.genreNames !== undefined && (!Array.isArray(s.genreNames) ||
+    s.genreNames.some(name => !validGenre(name) || !name) ||
+    new Set(s.genreNames).size !== s.genreNames.length)) fail('ジャンルの内容が不正です');
   if (!Number.isSafeInteger(s.createdSinceBackup) || s.createdSinceBackup < 0 ||
     !Number.isSafeInteger(s.lastBackupRecipeCount) || s.lastBackupRecipeCount < 0 ||
     (s.lastBackupAt !== null && !validDate(s.lastBackupAt))) fail('設定が不正です');

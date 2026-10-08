@@ -39,3 +39,21 @@ main{padding:0 20px}.page{display:none}.page.active{display:block}.hero{border-r
 [hidden] {display:none !important;}
 
 .cloud-panel input {width:100%;border:1px solid #d9d7c9;background:#fffefb;color:#293629;border-radius:16px;padding:14px 16px;min-height:48px;}
+.search-panel{border:1px solid #dce2d3;background:#fffdf8;border-radius:16px;overflow:hidden}
+.search-panel summary{cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;padding:15px 16px;list-style:none;min-height:64px}
+.search-panel summary::-webkit-details-marker{display:none}
+.search-panel summary:focus-visible{outline:3px solid #608968;outline-offset:-3px;border-radius:15px}
+.search-summary-title{font-size:14px;font-weight:800;color:#345b42}
+.search-summary-state{grid-column:1;font-size:11px;color:#84907b;overflow-wrap:anywhere}
+.search-chevron{grid-column:2;grid-row:1 / span 2;font-size:22px;color:#608968;transition:transform .15s}
+.search-panel[open] .search-chevron{transform:rotate(180deg)}
+.search-panel.filtering{border-color:#88a285;background:#f0f5e9}
+.search-panel.filtering .search-summary-state{color:#345b42;font-weight:650}
+.search-panel-body{padding:16px;border-top:1px solid #e4e8dd;background:#fffdf8}
+.search-panel-body .filter-line select{max-width:70%;width:210px}
+.search-panel-body .filter-line label{flex-shrink:0}
+.search-panel-body #clearSearch{margin-top:14px;font-size:12px}
+.genre-badge{background:#f5e8d5;color:#8c613c;padding:5px 8px;border-radius:7px;font-size:11px;overflow-wrap:anywhere;max-width:100%}
+.tag-row span{overflow-wrap:anywhere;min-width:0}
+.tag-row button{flex-shrink:0}
+.export-search{margin-top:22px}

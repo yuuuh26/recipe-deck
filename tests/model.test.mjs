@@ -49,3 +49,18 @@ test('damaged backup is rejected before restoration', () => {
   check(data=>data.tags[1].name='時短');
   check(data=>data.exportType='ai');
 });
+test('ジャンルは他の条件と組み合わせられ、旧レシピは未設定として探せる', () => {
+  const classified = recipes.map((recipe, index) => index === 0 ? {...recipe, genre: '炒め物'} : recipe);
+  assert.deepEqual(filterRecipes(classified, {genre:'炒め物', keyword:'鶏肉', minimum:7, tagIds:['a','b']}).map(r=>r.id), ['r1']);
+  assert.deepEqual(filterRecipes(classified, {genre:''}).map(r=>r.id), ['r3','r2']);
+  assert.deepEqual(filterRecipes(classified, {genre:'鍋'}), []);
+  assert.equal(aiExport(classified,tags).recipes[0].genre, '炒め物');
+  assert.match(questionText(classified[0],tags), /【ジャンル】\n炒め物/);
+  const data = backupExport(classified, tags, {lastBackupRecipeCount:0,lastBackupAt:null,createdSinceBackup:0,genreNames:['炒め物','パスタ','丼物']});
+  assert.deepEqual(validateBackup(JSON.parse(JSON.stringify(data))).settings.genreNames, ['炒め物','パスタ','丼物']);
+  assert.equal(validateBackup(data).recipes[0].genre, '炒め物');
+  for (const genre of [null, [], ' 炒め物', 'あ'.repeat(51)]) {
+    const bad = structuredClone(data); bad.recipes[0].genre = genre; assert.throws(()=>validateBackup(bad));
+  }
+  const bad = structuredClone(data); bad.settings.genreNames.push('炒め物'); assert.throws(()=>validateBackup(bad));
+});

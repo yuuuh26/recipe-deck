@@ -63,7 +63,7 @@ export async function write(stores, callback, {expectedRevision, recovery, recip
         meta.revision++; meta.lastEditAt = Date.now();
         if (recipe) {
           meta.textChanges += changedCharacters(previous?.recipeText, recipe.recipeText) + changedCharacters(previous?.notes, recipe.notes);
-          if ((previous?.rating ?? null) !== recipe.rating || JSON.stringify(previous?.tagIds ?? []) !== JSON.stringify(recipe.tagIds)) meta.immediateRevision = meta.revision;
+          if ((previous?.rating ?? null) !== recipe.rating || JSON.stringify(previous?.tagIds ?? []) !== JSON.stringify(recipe.tagIds) || (previous?.genre || '') !== (recipe.genre || '')) meta.immediateRevision = meta.revision;
         } else meta.immediateRevision = meta.revision;
         cloud.put(meta); apply();
       };
@@ -80,6 +80,13 @@ export const putRecipe = (recipe, settings) => write(settings ? ['recipes', 'set
   if (settings) tx.objectStore('settings').put({key: 'main', ...settings});
 }, {recipe});
 export const putSettings = settings => write(['settings'], tx => tx.objectStore('settings').put({key: 'main', ...settings}));
+// Genre management is content: capture settings and recipe changes atomically,
+// and schedule a cloud backup even when no recipe text changed.
+export const putGenreSettings = settings => write(['recipes', 'settings'], tx => tx.objectStore('settings').put({key: 'main', ...settings}));
+export const removeGenreEverywhere = (genre, recipes, settings, updatedAt) => write(['recipes', 'settings'], tx => {
+  tx.objectStore('settings').put({key: 'main', ...settings});
+  for (const recipe of recipes) if (recipe.genre === genre) tx.objectStore('recipes').put({...recipe, genre: '', updatedAt});
+});
 export const removeRecipe = id => write(['recipes'], tx => tx.objectStore('recipes').delete(id));
 export const putTag = tag => write(['tags'], tx => tx.objectStore('tags').put(tag));
 export const removeTagEverywhere = (id, recipes, updatedAt) => write(['tags', 'recipes'], tx => {

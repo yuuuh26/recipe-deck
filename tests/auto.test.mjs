@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
-import {write, putRecipe, putTag, putSettings, removeRecipe, removeTagEverywhere, replaceAll, cloudCapture, updateCloud, all} from '../db.mjs';
+import {write, putRecipe, putTag, putSettings, putGenreSettings, removeGenreEverywhere, removeRecipe, removeTagEverywhere, replaceAll, cloudCapture, updateCloud, all} from '../db.mjs';
 import {createAutoBackup, snapshotOf} from '../cloud-auto.mjs';
 import {changedCharacters, pendingCharacters} from '../cloud-policy.mjs';
 import {createBackup, validateBackup} from '../cloud-snapshot.mjs';
@@ -144,6 +144,25 @@ test('タグ・評価・削除・インポートは文字数なしでも3秒で�
     }
     assert.equal(h.sent.length,6);
   }finally{h.auto.stop()}
+});
+test('ジャンル変更・追加・削除をすぐ送信し、復元後にも分類と独自ジャンルを保持する',async()=>{
+  await reset(); await putRecipe(recipe); const h=harness();
+  try {
+    await h.auto.setConnected(true); await h.auto.run();
+    await putRecipe({...recipe,genre:'パスタ'}); await h.auto.refresh();
+    assert.equal([...h.timers.values()][0].ms,3000); await [...h.timers.values()][0].fn();
+    let snapshot = await validateBackup(h.sent.at(-1)); assert.equal(snapshot.data.recipes[0].genre,'パスタ');
+    await putGenreSettings({...settings,genreNames:['パスタ','丼物']}); await h.auto.refresh();
+    assert.equal([...h.timers.values()][0].ms,3000); await [...h.timers.values()][0].fn();
+    snapshot = await validateBackup(h.sent.at(-1)); assert.deepEqual(snapshot.data.settings.genreNames,['パスタ','丼物']);
+    await replaceAll(snapshot.data);
+    assert.equal((await all('recipes'))[0].genre,'パスタ'); assert.deepEqual((await all('settings'))[0].genreNames,['パスタ','丼物']);
+    await removeGenreEverywhere('パスタ',await all('recipes'),{...settings,genreNames:['丼物']},recipe.updatedAt);
+    await h.auto.refresh(); assert.equal([...h.timers.values()][0].ms,3000); await [...h.timers.values()][0].fn();
+    snapshot = await validateBackup(h.sent.at(-1)); assert.equal(snapshot.data.recipes[0].genre,'');
+    assert.equal(snapshot.data.recipes[0].recipeText,recipe.recipeText); assert.deepEqual(snapshot.data.settings.genreNames,['丼物']);
+    await replaceAll({...snapshot.data,recipes:[recipe]}); assert.equal((await all('recipes'))[0].genre,undefined);
+  } finally {h.auto.stop()}
 });
 test('通常の判定と閲覧では全レシピを読み込まず、旧版の未送信データを保持する',async()=>{
   await reset();let captures=0;const h=harness(async()=>{}, {capture:async()=>{captures++;return cloudCapture()}});
