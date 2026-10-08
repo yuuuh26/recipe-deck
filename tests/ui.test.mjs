@@ -36,7 +36,7 @@ test('実際の編集画面は本文変更後だけ送信し、閲覧・検索�
   document.querySelector('[data-page="home"]').click();document.querySelector('.recipe-card').click();
   const notes=document.getElementById('notes');notes.value='塩';notes.dispatchEvent(new dom.window.Event('input'));
   await tick(600);assert.equal(sent.length,1);assert.match(document.getElementById('cloudState').textContent,/1\/10文字/);
-  document.getElementById('backHome').click();
+  document.getElementById('brandHome').click();
   for(let i=0;i<100 && sent.length<2;i++)await tick(10);
   assert.equal(sent.length,2);
   for(let i=0;i<100 && (await cloudCapture()).meta.acknowledgedRevision<2;i++)await tick(10);
@@ -64,6 +64,11 @@ test('実際の編集画面は本文変更後だけ送信し、閲覧・検索�
   assert.ok((await cloudCapture()).settings[0].genreNames.includes('丼物'));
   document.querySelector('[data-page="export"]').click();
   assert.ok([...document.getElementById('exportGenre').options].some(option=>option.value==='genre:丼物'));
+  document.getElementById('brandHome').click(); await tick(10);
+  assert.ok(document.getElementById('home').classList.contains('active'));
+  document.getElementById('settingsShortcut').click(); await tick(10);
+  document.getElementById('brandHome').click(); await tick(10);
+  assert.ok(document.getElementById('home').classList.contains('active'));
   for(let i=0;i<100;i++) {
     const captured=await cloudCapture();if(captured.meta.acknowledgedRevision===captured.meta.revision)break;
     await tick(20);

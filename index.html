@@ -15,7 +15,7 @@
 <body>
   <div class="app">
     <header class="topbar">
-      <div class="brand"><span class="brand-mark" aria-hidden="true">R.</span><div><small>MY RECIPE LIBRARY</small><strong>Recipe Deck</strong></div></div>
+      <button id="brandHome" class="brand" type="button" aria-label="Recipe Deck ホーム画面へ戻る"><span class="brand-mark" aria-hidden="true">R.</span><span class="brand-copy"><small>MY RECIPE LIBRARY</small><strong>Recipe Deck</strong></span></button>
       <button class="icon-button" id="settingsShortcut" aria-label="設定を開く">⚙</button>
     </header>
     <button id="cloudSummary" class="cloud-summary" type="button" aria-live="polite">クラウド保存を確認中…</button>
@@ -93,7 +93,7 @@
         </div>
         <div class="panel"><h2>タグ管理</h2><div id="managedTags" class="tag-manager"></div><button id="createTagInSettings" class="button outline full">＋ 新しいタグ</button></div>
         <div class="panel"><h2>ジャンル管理</h2><p class="help">鍋・炒め物・パスタなど、料理の種類を登録できます。</p><div id="managedGenres" class="tag-manager"></div><button id="createGenreInSettings" class="button outline full" type="button">＋ 新しいジャンル</button></div>
-        <div class="panel info"><h2>アプリ情報</h2><dl><div><dt>バージョン</dt><dd>v1.4.2</dd></div><div><dt>保存方式</dt><dd>端末内 + 変更時にクラウド</dd></div><div><dt>永続ストレージ</dt><dd id="storageState">確認中</dd></div><div><dt>公開 URL</dt><dd><button id="copyUrl" class="inline-link">URL をコピー</button></dd></div><div><dt>GitHub</dt><dd><button id="copyRepo" class="inline-link">リポジトリ URL をコピー</button></dd></div></dl><p class="footnote">端末に保存した変更は、接続後にクラウドへ自動保存します。未送信中のデータは端末内にだけ残るため、完全バックアップJSONも利用できます。</p></div>
+        <div class="panel info"><h2>アプリ情報</h2><dl><div><dt>バージョン</dt><dd>v1.4.3</dd></div><div><dt>保存方式</dt><dd>端末内 + 変更時にクラウド</dd></div><div><dt>永続ストレージ</dt><dd id="storageState">確認中</dd></div><div><dt>公開 URL</dt><dd><button id="copyUrl" class="inline-link">URL をコピー</button></dd></div><div><dt>GitHub</dt><dd><button id="copyRepo" class="inline-link">リポジトリ URL をコピー</button></dd></div></dl><p class="footnote">端末に保存した変更は、接続後にクラウドへ自動保存します。未送信中のデータは端末内にだけ残るため、完全バックアップJSONも利用できます。</p></div>
         <p class="signature">Made by YUU</p>
       </section>
     </main>

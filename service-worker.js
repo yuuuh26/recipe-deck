@@ -1,4 +1,4 @@
-const CACHE = 'recipe-deck-v1.4.2-home-buttons';
+const CACHE = 'recipe-deck-v1.4.3-brand-home';
 const ASSETS = ['./','./index.html','./style.css','./app.mjs','./model.mjs','./db.mjs','./cloud-snapshot.mjs','./cloud-api.mjs','./cloud-auto.mjs','./cloud-policy.mjs','./cloud-ui.mjs','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));

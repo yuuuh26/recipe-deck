@@ -67,3 +67,6 @@ main{padding:0 20px}.page{display:none}.page.active{display:block}.hero{border-r
 .field-hint{margin:0 0 8px;color:#889284;font-size:11px;line-height:1.5}
 #editor .editor-actions{margin-bottom:12px}
 .editor-home-bottom{margin-bottom:24px}
+.brand{border:0;padding:0;background:transparent;color:inherit;text-align:left;min-height:44px;border-radius:10px}
+.brand-copy{display:flex;flex-direction:column}
+.brand:focus-visible{outline:3px solid #608968;outline-offset:4px}

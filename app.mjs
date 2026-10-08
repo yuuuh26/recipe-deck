@@ -354,6 +354,7 @@ function wire() {
   renderMinimum($('minimum')); renderMinimum($('exportMinimum'));
   document.querySelectorAll('.bottom-nav button').forEach(button => button.addEventListener('click', () => navigate(button.dataset.page)));
   $('settingsShortcut').addEventListener('click', () => navigate('settings'));
+  $('brandHome').addEventListener('click', () => navigate('home'));
   $('addRecipe').addEventListener('click', () => openRecipe());
   $('backHome').addEventListener('click', () => navigate('home'));
   $('backHomeBottom').addEventListener('click', () => navigate('home'));
