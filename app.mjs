@@ -1,6 +1,6 @@
 import {initCloud} from './cloud-ui.mjs';
 import {titleOf, filterRecipes, questionText, aiExport, backupExport, validateBackup, DEFAULT_GENRES} from './model.mjs';
-import {all, putRecipe, putSettings, removeRecipe, putTag, removeTagEverywhere, putGenreSettings, removeGenreEverywhere, replaceAll} from './db.mjs';
+import {all, putRecipe, removeRecipe, putTag, removeTagEverywhere, putGenreSettings, removeGenreEverywhere, replaceAll} from './db.mjs';
 
 const $ = id => document.getElementById(id);
 const settingsDefaults = {lastBackupRecipeCount: 0, lastBackupAt: null, createdSinceBackup: 0};
@@ -107,7 +107,6 @@ function renderHome() {
     meta.append(element('span', 'updated', '更新 ' + date(recipe.updatedAt)));
     card.append(meta); card.addEventListener('click', () => openRecipe(recipe)); list.append(card);
   }
-  $('backupAlert').classList.toggle('hidden', settings.createdSinceBackup < 10);
 }
 function renderEditor() {
   $('recipeText').value = active.recipeText;
@@ -179,11 +178,8 @@ async function persist() {
     if (previous && ['recipeText', 'notes', 'rating'].every(k => previous[k] === snapshot[k]) && JSON.stringify(previous.tagIds) === JSON.stringify(snapshot.tagIds) && (previous.genre || '') === (snapshot.genre || '')) {
       savedRevision = currentRevision; if (revision === currentRevision) status('保存済み'); return;
     }
-    const isNew = !previous;
-    const nextSettings = {...settings, createdSinceBackup: settings.createdSinceBackup + (isNew ? 1 : 0)};
-    await putRecipe(snapshot, isNew ? nextSettings : undefined);
+    await putRecipe(snapshot);
     editorChanged = true;
-    if (isNew) settings = nextSettings;
     recipes = recipes.filter(item => item.id !== snapshot.id).concat(snapshot);
     savedRevision = currentRevision;
     if (active?.id === snapshot.id) {
@@ -279,10 +275,7 @@ function renderExport() {
     outputTags.has(tagId) ? outputTags.delete(tagId) : outputTags.add(tagId); renderExport();
   });
   $('backupStats').replaceChildren(
-    element('div', '', '現在のレシピ数：' + recipes.length + ' 件'),
-    element('div', '', '前回バックアップ：' + date(settings.lastBackupAt)),
-    element('div', '', '前回バックアップ時：' + settings.lastBackupRecipeCount + ' 件'),
-    element('div', '', '次回推奨まで：あと ' + Math.max(0, 10 - settings.createdSinceBackup) + ' 件')
+    element('div', '', '現在のレシピ数：' + recipes.length + ' 件')
   );
 }
 function showJson(selected) {
@@ -336,7 +329,7 @@ async function importBackup(file) {
     if (!confirm('現在のデータ：' + recipes.length + ' 件\nバックアップ：' + data.recipeCount + ' 件\n\n復元すると現在のデータが置き換えられます。続けますか？')) return;
     await replaceAll(data);
     recipes = data.recipes; tags = data.tags; settings = {...settingsDefaults, ...data.settings};
-    clearHomeSearch(); outputTags.clear(); $('exportGenre').value = 'all'; active = null; $('backupConfirmation').classList.add('hidden');
+    clearHomeSearch(); outputTags.clear(); $('exportGenre').value = 'all'; active = null;
     $('importFile').value = ''; showPage('home');
     toast(recipes.length + ' 件のレシピと ' + tags.length + ' 件のタグを復元しました');
   } catch (error) { toast(error.message || '復元に失敗しました。元のデータは変更していません'); }
@@ -358,7 +351,6 @@ function wire() {
   $('addRecipe').addEventListener('click', () => openRecipe());
   $('backHome').addEventListener('click', () => navigate('home'));
   $('backHomeBottom').addEventListener('click', () => navigate('home'));
-  $('alertBackup').addEventListener('click', () => navigate('export'));
   $('keyword').addEventListener('input', renderHome);
   $('minimum').addEventListener('change', renderHome);
   $('filterGenre').addEventListener('change', renderHome);
@@ -397,17 +389,8 @@ function wire() {
   $('downloadBackup').addEventListener('click', () => {
     try {
       const backup = backupExport(recipes, tags, settings);
-      const createdAtDownload = settings.createdSinceBackup;
       downloadJson(JSON.stringify(backup, null, 2), 'recipe-deck-backup-' + new Date().toISOString().slice(0,10) + '.json');
-      $('backupConfirmation').classList.remove('hidden');
-      $('confirmBackup').onclick = async () => {
-        try {
-          const createdAfterDownload = Math.max(0, settings.createdSinceBackup - createdAtDownload);
-          const next = {...settings, lastBackupRecipeCount: backup.recipeCount, lastBackupAt: backup.exportedAt, createdSinceBackup: createdAfterDownload};
-          await putSettings(next); settings = next; $('backupConfirmation').classList.add('hidden');
-          renderExport(); toast('バックアップを記録しました');
-        } catch { toast('バックアップ日時を記録できませんでした'); }
-      };
+      toast('完全バックアップJSONの保存を開始しました');
     } catch { toast('バックアップを作成できませんでした'); }
   });
   $('importFile').addEventListener('change', event => importBackup(event.target.files[0]));

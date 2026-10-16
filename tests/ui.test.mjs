@@ -84,3 +84,19 @@ test('サービスワーカーは認証やバックアップのGETをキャッ�
     let intercepted=false;listeners.fetch({request:{method:'GET',url:CLOUD_ORIGIN+path},respondWith:()=>intercepted=true});assert.equal(intercepted,false);
   }
 });
+
+test('10件ごとの手動バックアップ通知を廃止し、任意のJSON退避とクラウド保存のUIを残す', async () => {
+  const html = await readFile('index.html', 'utf8');
+  const app = await readFile('app.mjs', 'utf8');
+  const dom = new JSDOM(html);
+  assert.equal(dom.window.document.getElementById('backupAlert'), null);
+  assert.equal(dom.window.document.getElementById('alertBackup'), null);
+  assert.equal(dom.window.document.getElementById('backupConfirmation'), null);
+  assert.equal(dom.window.document.getElementById('confirmBackup'), null);
+  assert.ok(dom.window.document.getElementById('downloadBackup'));
+  assert.ok(dom.window.document.getElementById('importFile'));
+  assert.ok(dom.window.document.getElementById('cloudSummary'));
+  assert.doesNotMatch(app, /settings\.createdSinceBackup\s*\+|backupAlert|backupConfirmation|alertBackup/);
+  assert.doesNotMatch(app, /次回推奨まで/);
+  dom.window.close();
+});
