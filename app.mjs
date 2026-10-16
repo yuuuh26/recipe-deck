@@ -329,7 +329,7 @@ async function importBackup(file) {
     if (!confirm('現在のデータ：' + recipes.length + ' 件\nバックアップ：' + data.recipeCount + ' 件\n\n復元すると現在のデータが置き換えられます。続けますか？')) return;
     await replaceAll(data);
     recipes = data.recipes; tags = data.tags; settings = {...settingsDefaults, ...data.settings};
-    clearHomeSearch(); outputTags.clear(); $('exportGenre').value = 'all'; active = null; $('backupConfirmation').classList.add('hidden');
+    clearHomeSearch(); outputTags.clear(); $('exportGenre').value = 'all'; active = null;
     $('importFile').value = ''; showPage('home');
     toast(recipes.length + ' 件のレシピと ' + tags.length + ' 件のタグを復元しました');
   } catch (error) { toast(error.message || '復元に失敗しました。元のデータは変更していません'); }
