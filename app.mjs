@@ -1,14 +1,13 @@
 import {initCloud} from './cloud-ui.mjs';
-import {initDraftInbox,importedRecipeId} from './draft-inbox.mjs';
+import {initDraftInbox} from './draft-inbox.mjs';
 import {titleOf, filterRecipes, questionText, aiExport, backupExport, validateBackup, DEFAULT_GENRES} from './model.mjs';
-import {all, putRecipe, removeRecipe, putTag, removeTagEverywhere, putGenreSettings, removeGenreEverywhere, replaceAll,putAiDraft,saveImportedRecipe} from './db.mjs';
+import {all, putRecipe, removeRecipe, putTag, removeTagEverywhere, putGenreSettings, removeGenreEverywhere, replaceAll} from './db.mjs';
 
 const $ = id => document.getElementById(id);
 const settingsDefaults = {lastBackupRecipeCount: 0, lastBackupAt: null, createdSinceBackup: 0};
 let recipes = [], tags = [], settings = {...settingsDefaults};
 let active = null, page = 'home', revision = 0, savedRevision = 0, timer, cloud, editorChanged = false;
 let saveQueue = Promise.resolve(), toastTimer, outputTags = new Set(), homeTags = new Set();
-let incomingDraftId=null,inbox;
 const NOTES_SUMMARY_PROMPT = 'この料理について、ここまで私がした質問と、それぞれの回答を、次回作るときに活用できるよう簡潔にまとめて、備考欄へそのままコピペできる形で出力して。';
 const date = value => value ? new Date(value).toLocaleDateString('ja-JP') : 'なし';
 const now = () => new Date().toISOString();
@@ -111,7 +110,6 @@ function renderHome() {
   }
 }
 function renderEditor() {
-  $('aiDraftActions').hidden=!incomingDraftId;
   $('recipeText').value = active.recipeText;
   $('notes').value = active.notes;
   $('editorTitle').textContent = active.recipeText.trim() ? titleOf(active.recipeText) : '新しいレシピ';
@@ -141,15 +139,13 @@ function renderEditorControls() {
   }, 3);
   $('tagCounter').textContent = active.tagIds.length + ' / 3';
 }
-function openRecipe(recipe = null, draftId = null) {
-  incomingDraftId=draftId;
+function openRecipe(recipe = null) {
   active = recipe ? structuredClone(recipe) : {
     id: id('recipe'), title: '無題のレシピ', recipeText: '', rating: null,
     tagIds: [], genre: '', notes: '', createdAt: now(), updatedAt: now()
   };
   revision = savedRevision = 0; editorChanged = false; renderEditor(); showPage('editor');
   if (!recipe) $('recipeText').focus();
-  if(draftId)status('AIの下書き・レシピ一覧には未登録');
 }
 function openCookingMode() {
   if (!active?.recipeText.trim()) { toast('レシピ本文を入力してください'); return; }
@@ -173,10 +169,6 @@ function changed() {
 }
 async function persist() {
   clearTimeout(timer);
-  if(incomingDraftId&&active){
-    try{await putAiDraft({id:incomingDraftId,recipeText:active.recipeText,createdAt:active.createdAt,recipe:structuredClone(active)});status('下書きを端末に保存・一覧には未登録');return true;}
-    catch{toast('下書きを保存できません。本文をコピーしてください');return false;}
-  }
   if (!active || !active.recipeText.trim()) return true;
   const currentRevision = revision, snapshot = structuredClone(active);
   snapshot.title = titleOf(snapshot.recipeText);
@@ -204,7 +196,6 @@ async function persist() {
   catch (error) { toast('保存に失敗しました。内容をコピーして保護してください'); return false; }
 }
 async function flush() {
-  if(incomingDraftId)return persist();
   if (!active || !active.recipeText.trim()) {
     if (active && revision > 0 && (active.notes || active.rating !== null || active.tagIds.length || active.genre)) {
       toast('保存するにはレシピ本文を入力してください'); return false;
@@ -354,17 +345,6 @@ async function storageStatus() {
   } catch { node.textContent = '未取得'; }
 }
 function wire() {
-  $('aiSaveDraft').addEventListener('click',async()=>{
-    if(!incomingDraftId||!active?.recipeText.trim())return;
-    const draftId=incomingDraftId,snapshot={...structuredClone(active),title:titleOf(active.recipeText),updatedAt:now()};
-    clearTimeout(timer);await saveQueue.catch(()=>{});
-    try{
-      await saveImportedRecipe(snapshot,draftId);recipes=recipes.filter(r=>r.id!==snapshot.id).concat(snapshot);
-      incomingDraftId=null;revision=savedRevision=0;editorChanged=true;renderEditor();
-      toast('新しいレシピとして保存しました');void cloud?.flushPending();
-      try{await inbox.ack(draftId)}catch{toast('レシピは保存済みです。受信確認は次回再送します');}
-    }catch{toast('保存できませんでした。ほかの画面ですでに保存されていないか確認してください');}
-  });
   renderMinimum($('minimum')); renderMinimum($('exportMinimum'));
   document.querySelectorAll('.bottom-nav button').forEach(button => button.addEventListener('click', () => navigate(button.dataset.page)));
   $('settingsShortcut').addEventListener('click', () => navigate('settings'));
@@ -431,9 +411,13 @@ async function init() {
       recipes = data.recipes; tags = data.tags; settings = {...settingsDefaults, ...data.settings};
       clearHomeSearch(); outputTags.clear(); $('exportGenre').value = 'all'; active = null; showPage('home');
     }});
-    inbox=await initDraftInbox({toast,isIdle:()=>page==='home'&&!active,hasRecipe:recipeId=>recipes.some(r=>r.id===recipeId),open:d=>{
-      if(page!=='home'||active)return;
-      openRecipe(d.recipe??{id:importedRecipeId(d.id),title:titleOf(d.recipeText),recipeText:d.recipeText,rating:null,tagIds:[],genre:'',notes:'',createdAt:d.createdAt,updatedAt:d.createdAt},d.id);
+    await initDraftInbox({toast,isIdle:()=>page==='home'&&!active,hasRecipe:recipeId=>recipes.some(r=>r.id===recipeId),received:items=>{
+      const added=new Map(items.map(r=>[r.id,r]));
+      recipes=recipes.filter(r=>!added.has(r.id)).concat(items);
+      if(page==='home')renderHome();
+      void cloud?.flushPending();
+    },open:recipe=>{
+      if(page==='home'&&!active)openRecipe(recipe);
     }});
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('./service-worker.js').catch(() => {});
   } catch (error) {

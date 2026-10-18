@@ -81,12 +81,30 @@ export const putRecipe = (recipe, settings) => write(settings ? ['recipes', 'set
   if (settings) tx.objectStore('settings').put({key: 'main', ...settings});
 }, {recipe});
 export const putSettings = settings => write(['settings'], tx => tx.objectStore('settings').put({key: 'main', ...settings}));
-// Unconfirmed AI drafts do not change the recipe collection or trigger backups.
+// Pending AI drafts survive failed imports without triggering a backup.
 export const putAiDraft = draft => write(['aiDrafts'], tx => tx.objectStore('aiDrafts').put(draft));
 export const removeAiDraft = id => write(['aiDrafts'], tx => tx.objectStore('aiDrafts').delete(id));
+const receiptKey = id => 'ai-received:' + id;
+export async function hasReceivedAiDraft(id) {
+  const db=await openDatabase();
+  return new Promise((resolve,reject)=>{
+    const request=db.transaction('cloud','readonly').objectStore('cloud').get(receiptKey(id));
+    request.onsuccess=()=>resolve(!!request.result);request.onerror=()=>reject(request.error);
+  });
+}
+export const markAiDraftReceived = id => write(['cloud','aiDrafts'],tx=>{
+  tx.objectStore('cloud').put({key:receiptKey(id)});tx.objectStore('aiDrafts').delete(id);
+});
 export const saveImportedRecipe = (recipe,draftId) => write(['recipes','aiDrafts'], tx => {
-  tx.objectStore('recipes').add(recipe); // A repeated import must never overwrite an edited recipe.
-  tx.objectStore('aiDrafts').delete(draftId);
+  const request=tx.objectStore('cloud').get(receiptKey(draftId));
+  request.onsuccess=()=>{
+    // The receipt and recipe share a transaction. Concurrent tabs cannot
+    // import twice, or resurrect a deleted recipe after a failed server ack.
+    if(request.result){tx.abort();return;}
+    tx.objectStore('recipes').add(recipe);
+    tx.objectStore('aiDrafts').delete(draftId);
+    tx.objectStore('cloud').put({key:receiptKey(draftId)});
+  };
 }, {recipe});
 // Genre management is content: capture settings and recipe changes atomically,
 // and schedule a cloud backup even when no recipe text changed.
