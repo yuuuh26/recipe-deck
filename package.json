@@ -1,6 +1,6 @@
 {
   "name": "recipe-deck",
-  "version": "1.4.4",
+  "version": "1.5.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,5 +11,8 @@
     "esbuild": "0.25.9",
     "fake-indexeddb": "6.2.2",
     "jsdom": "26.1.0"
+  },
+  "dependencies": {
+    "@cloudflare/workers-oauth-provider": "1.2.3"
   }
 }

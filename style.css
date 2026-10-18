@@ -70,3 +70,5 @@ main{padding:0 20px}.page{display:none}.page.active{display:block}.hero{border-r
 .brand{border:0;padding:0;background:transparent;color:inherit;text-align:left;min-height:44px;border-radius:10px}
 .brand-copy{display:flex;flex-direction:column}
 .brand:focus-visible{outline:3px solid #608968;outline-offset:4px}
+
+.ai-inbox{border:1px solid #d4aa64;background:#fff8e9}.ai-inbox strong{display:block;margin-bottom:12px}.oauth-page{max-width:620px;margin:40px auto;padding:24px}.oauth-page form{margin-top:24px}.oauth-page button{margin:8px 8px 0 0}.oauth-page input{display:block;width:100%;margin:12px 0}#aiMcpUrl{overflow-wrap:anywhere}

@@ -1,7 +1,9 @@
 import api,{type Env} from './worker';
 import assets from 'site-assets';
-export default {async fetch(request:Request,env:Env){
+import mcp from './mcp';
+export default {async fetch(request:Request,env:Env,ctx:any){
   const path=new URL(request.url).pathname;
+  if(path==='/mcp'||path.startsWith('/oauth/')||path.startsWith('/.well-known/')||path.startsWith('/v1/ai-drafts')||path.startsWith('/v1/mcp/'))return mcp.fetch(request,env,ctx);
   if(path.startsWith('/v1/'))return api.fetch(request,env);
   const asset=assets[path==='/'?'/index.html':path];
   if(!asset)return new Response('Not found',{status:404});

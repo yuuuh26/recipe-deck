@@ -1,6 +1,6 @@
 import {changedCharacters} from './cloud-policy.mjs';
 const NAME = 'recipe-deck';
-const VERSION = 2;
+const VERSION = 3;
 const listeners = new Set();
 const channel = typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('recipe-deck-changes') : null;
 channel?.addEventListener('message', () => listeners.forEach(fn => fn()));
@@ -19,6 +19,7 @@ export async function openDatabase() {
       if (!db.objectStoreNames.contains('tags')) db.createObjectStore('tags', {keyPath: 'id'});
       if (!db.objectStoreNames.contains('cloud')) db.createObjectStore('cloud', {keyPath: 'key'});
       if (!db.objectStoreNames.contains('settings')) db.createObjectStore('settings', {keyPath: 'key'});
+      if (!db.objectStoreNames.contains('aiDrafts')) db.createObjectStore('aiDrafts', {keyPath: 'id'});
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -80,6 +81,13 @@ export const putRecipe = (recipe, settings) => write(settings ? ['recipes', 'set
   if (settings) tx.objectStore('settings').put({key: 'main', ...settings});
 }, {recipe});
 export const putSettings = settings => write(['settings'], tx => tx.objectStore('settings').put({key: 'main', ...settings}));
+// Unconfirmed AI drafts do not change the recipe collection or trigger backups.
+export const putAiDraft = draft => write(['aiDrafts'], tx => tx.objectStore('aiDrafts').put(draft));
+export const removeAiDraft = id => write(['aiDrafts'], tx => tx.objectStore('aiDrafts').delete(id));
+export const saveImportedRecipe = (recipe,draftId) => write(['recipes','aiDrafts'], tx => {
+  tx.objectStore('recipes').add(recipe); // A repeated import must never overwrite an edited recipe.
+  tx.objectStore('aiDrafts').delete(draftId);
+}, {recipe});
 // Genre management is content: capture settings and recipe changes atomically,
 // and schedule a cloud backup even when no recipe text changed.
 export const putGenreSettings = settings => write(['recipes', 'settings'], tx => tx.objectStore('settings').put({key: 'main', ...settings}));
