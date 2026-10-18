@@ -35,7 +35,7 @@ export async function rpc(request:Request,env:any,ctx:any) {
   if(msg.id===undefined)return new Response(null,{status:202,headers:{'Cache-Control':'no-store'}});
   if(msg.method==='initialize') {
     const versions=['2026-07-28','2025-11-25','2025-06-18','2025-03-26','2024-11-05'];
-    return result({protocolVersion:versions.includes(msg.params?.protocolVersion)?msg.params.protocolVersion:'2025-11-25',capabilities:{tools:{}},serverInfo:{name:'recipe-deck',version:'1.5.0'},instructions:'Recipe Deckへ完成したレシピを新しい下書きとして送ります。ユーザーが送信を依頼した時だけ使用し、recipe_textにはレシピ本文だけを入れてください。既存レシピの閲覧・編集・削除はできません。'});
+    return result({protocolVersion:versions.includes(msg.params?.protocolVersion)?msg.params.protocolVersion:'2025-11-25',capabilities:{tools:{}},serverInfo:{name:'recipe-deck',version:'1.5.1'},instructions:'Recipe Deckへ完成したレシピを新しい下書きとして送ります。ユーザーが送信を依頼した時だけ使用し、recipe_textにはレシピ本文だけを入れてください。既存レシピの閲覧・編集・削除はできません。'});
   }
   if(msg.method==='ping')return result({});
   if(msg.method==='tools/list')return result({tools:[{name:'create_recipe_draft',title:'レシピをRecipe Deckの下書きへ送る',description:'ユーザーがレシピデッキへの送信を依頼した時、完成したレシピ本文を新しい下書きとして追加します。アプリを開くと新規レシピ本文へ取り込まれます。既存の記録は読み取らず変更しません。会話履歴や認証情報を含めないでください。',inputSchema:{type:'object',properties:{recipe_text:{type:'string',minLength:1,maxLength:20000,description:'料理名・材料・作り方などを含むレシピ全文。改行を保持。'},request_id:{type:'string',minLength:8,maxLength:128,pattern:'^[A-Za-z0-9_-]+$',description:'送信ごとに新しい一意のID。通信失敗時の再送では同じIDを使用。'}},required:['recipe_text','request_id'],additionalProperties:false},annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:false},securitySchemes:[{type:'oauth2',scopes:[SCOPE]}]}]});
@@ -65,18 +65,22 @@ const provider=new OAuthProvider<any>({
         const parsed=await oauth.parseAuthRequest(request);
         if(!allowedHost(parsed.redirectUri)||(parsed.clientId.startsWith('https:')&&!allowedHost(parsed.clientId))||parsed.codeChallengeMethod!=='S256'||!parsed.codeChallenge||parsed.scope.some((s:string)=>![SCOPE,'offline_access'].includes(s)))throw new AuthError(400,'接続先・権限・認証方式を確認してください');
         const details=await oauth.describeConsent(parsed),consent=await oauth.beginConsent(parsed);
-        consent.headers.set('Content-Type','text/html;charset=utf-8');consent.headers.set('Cache-Control','no-store');consent.headers.set('Referrer-Policy','no-referrer');
-        consent.headers.set('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
-        return new Response(`<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Recipe Deckへの接続</title><link rel="stylesheet" href="/style.css"><main class="oauth-page"><p class="eyebrow">RECIPE DECK</p><h1>ChatGPTから下書きを受け取る</h1><p>接続先：<strong>${escape(details.clientName)}</strong></p><p>認証結果の送信先：<strong>${escape(details.redirectHost)}</strong></p><p>許可する操作：<strong>新しいレシピ下書きの追加だけ</strong>。既存レシピの閲覧・上書き・削除やバックアップ復元の権限はありません。</p><p>アクセストークンは1時間、接続は最大30日で更新が必要になります。アプリの設定から接続を解除できます。</p><form id="oauthLogin" hidden><label for="oauthKey">この端末が未接続の場合はレシピ専用の復旧キー</label><input id="oauthKey" type="password" autocomplete="off" required><button class="button outline" type="submit">この端末を接続</button></form><form method="post" id="oauthConsent"><input type="hidden" name="handle" value="${escape(consent.handle)}"><p id="oauthStatus" role="status">接続を確認中…</p><button class="button primary" id="oauthApprove" name="decision" value="approve" disabled>下書きの追加を許可して接続</button><button class="button outline" name="decision" value="deny">キャンセル</button></form><p class="signature">Made by YUU</p></main><script type="module" src="/oauth-ui.mjs"></script></html>`,{headers:consent.headers});
+        // Native form POSTs use Origin:null under no-referrer. Keep the real
+        // same-origin sender for CSRF validation, while hiding cross-site URLs.
+        consent.headers.set('Content-Type','text/html;charset=utf-8');consent.headers.set('Cache-Control','no-store');consent.headers.set('Referrer-Policy','same-origin');
+        const callback=new URL(parsed.redirectUri);
+        // Chromium also checks form-action on the OAuth redirect after POST.
+        consent.headers.set('Content-Security-Policy',`default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; form-action 'self' ${callback.origin}${callback.pathname}; frame-ancestors 'none'; base-uri 'none'`);
+        return new Response(`<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Recipe Deckへの接続</title><link rel="stylesheet" href="/style.css"><main class="oauth-page"><p class="eyebrow">RECIPE DECK</p><h1>ChatGPTから下書きを受け取る</h1><p>接続先：<strong>${escape(details.clientName)}</strong></p><p>認証結果の送信先：<strong>${escape(details.redirectHost)}</strong></p><p>許可する操作：<strong>新しいレシピ下書きの追加だけ</strong>。既存レシピの閲覧・上書き・削除やバックアップ復元の権限はありません。</p><p>アクセストークンは1時間、接続は最大30日で更新が必要になります。アプリの設定から接続を解除できます。</p><form id="oauthLogin" hidden><label for="oauthKey">この端末が未接続の場合はレシピ専用の復旧キー</label><input id="oauthKey" type="password" autocomplete="off" required><button class="button outline" type="submit">この端末を接続</button></form><form method="post" action="/oauth/authorize" id="oauthConsent"><input type="hidden" name="handle" value="${escape(consent.handle)}"><p id="oauthStatus" role="status">接続を確認中…</p><button class="button primary" id="oauthApprove" name="decision" value="approve" disabled>下書きの追加を許可して接続</button><button class="button outline" name="decision" value="deny">キャンセル</button></form><p class="signature">Made by YUU</p></main><script type="module" src="/oauth-ui.mjs"></script></html>`,{headers:consent.headers});
       }
       if(request.method==='POST'){
         sameOrigin(request);
         const form=await request.formData(),handle=String(form.get('handle')??'');
-        if(form.get('decision')!=='approve'){const denied=await oauth.denyConsent(request,handle);return new Response(null,{status:302,headers:denied.headers})}
+        if(form.get('decision')!=='approve'){const denied=await oauth.denyConsent(request,handle);denied.headers.set('Referrer-Policy','no-referrer');return new Response(null,{status:302,headers:denied.headers})}
         await getSession(request,env);
         const approved=await oauth.approveConsent(request,handle,{scope:[SCOPE,'offline_access']});
         const {redirectTo}=await oauth.completeAuthorization({request:approved.request,userId:OWNER,metadata:{label:'Recipe Deck 下書き追加'},scope:[SCOPE,'offline_access'],props:{userId:OWNER}});
-        approved.headers.set('Location',redirectTo);return new Response(null,{status:302,headers:approved.headers});
+        approved.headers.set('Location',redirectTo);approved.headers.set('Referrer-Policy','no-referrer');return new Response(null,{status:302,headers:approved.headers});
       }
     }
     if(path==='/v1/ai-drafts'&&request.method==='GET'){
