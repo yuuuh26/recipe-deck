@@ -35,7 +35,7 @@ export async function rpc(request:Request,env:any,ctx:any) {
   if(msg.id===undefined)return new Response(null,{status:202,headers:{'Cache-Control':'no-store'}});
   if(msg.method==='initialize') {
     const versions=['2026-07-28','2025-11-25','2025-06-18','2025-03-26','2024-11-05'];
-    return result({protocolVersion:versions.includes(msg.params?.protocolVersion)?msg.params.protocolVersion:'2025-11-25',capabilities:{tools:{}},serverInfo:{name:'recipe-deck',version:'1.5.2'},instructions:'Recipe Deckへ完成したレシピを新しい下書きとして送ります。ユーザーが送信を依頼した時だけ使用し、recipe_textにはレシピ本文だけを入れてください。既存レシピの閲覧・編集・削除はできません。'});
+    return result({protocolVersion:versions.includes(msg.params?.protocolVersion)?msg.params.protocolVersion:'2025-11-25',capabilities:{tools:{}},serverInfo:{name:'recipe-deck',version:'1.5.3'},instructions:'Recipe Deckへ完成したレシピを新しい下書きとして送ります。ユーザーが送信を依頼した時だけ使用し、recipe_textにはレシピ本文だけを入れてください。既存レシピの閲覧・編集・削除はできません。'});
   }
   if(msg.method==='ping')return result({});
   if(msg.method==='tools/list')return result({tools:[{name:'create_recipe_draft',title:'レシピをRecipe Deckの下書きへ送る',description:'ユーザーがレシピデッキへの送信を依頼した時、完成したレシピ本文を新しい下書きとして追加します。アプリを開くと新規レシピ本文へ取り込まれます。既存の記録は読み取らず変更しません。会話履歴や認証情報を含めないでください。',inputSchema:{type:'object',properties:{recipe_text:{type:'string',minLength:1,maxLength:20000,description:'料理名・材料・作り方などを含むレシピ全文。改行を保持。'},request_id:{type:'string',minLength:8,maxLength:128,pattern:'^[A-Za-z0-9_-]+$',description:'送信ごとに新しい一意のID。通信失敗時の再送では同じIDを使用。'}},required:['recipe_text','request_id'],additionalProperties:false},annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:false},securitySchemes:[{type:'oauth2',scopes:[SCOPE]}]}]});
