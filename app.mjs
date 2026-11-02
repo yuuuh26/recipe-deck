@@ -1,7 +1,7 @@
 import {initCloud} from './cloud-ui.mjs';
 import {initDraftInbox} from './draft-inbox.mjs';
-import {titleOf, filterRecipes, questionText, aiExport, backupExport, validateBackup, DEFAULT_GENRES} from './model.mjs';
-import {all, putRecipe, removeRecipe, putTag, removeTagEverywhere, putGenreSettings, removeGenreEverywhere, replaceAll} from './db.mjs';
+import {titleOf, filterRecipes, questionText, improvementPrompt, recipeVersion, createRecipeVersion, aiExport, backupExport, validateBackup, DEFAULT_GENRES} from './model.mjs';
+import {all, putRecipe, putRecipeVersion, removeRecipe, putTag, removeTagEverywhere, putGenreSettings, removeGenreEverywhere, replaceAll} from './db.mjs';
 
 const $ = id => document.getElementById(id);
 const settingsDefaults = {lastBackupRecipeCount: 0, lastBackupAt: null, createdSinceBackup: 0};
@@ -112,6 +112,12 @@ function renderHome() {
 function renderEditor() {
   $('recipeText').value = active.recipeText;
   $('notes').value = active.notes;
+  $('reflection').value = active.reflection || '';
+  $('nextChanges').value = active.nextChanges || '';
+  $('recipeVersion').textContent = '第' + recipeVersion(active) + '版・最新版';
+  $('versionSummary').textContent = active.versionSummary || '';
+  $('versionHistoryCount').textContent = (active.versions?.length || 0) + ' 件';
+  renderVersionHistory();
   $('editorTitle').textContent = active.recipeText.trim() ? titleOf(active.recipeText) : '新しいレシピ';
   $('tagCounter').textContent = active.tagIds.length + ' / 3';
   $('ratings').replaceChildren();
@@ -159,7 +165,69 @@ function openCookingMode() {
   const notes = (active.notes || '').trim();
   $('cookingNotesText').textContent = notes;
   $('cookingNotes').hidden = !notes;
+  for (const [key, prefix] of [['reflection', 'cookingReflection'], ['nextChanges', 'cookingNextChanges']]) {
+    const value = (active[key] || '').trim();
+    $(prefix + 'Text').textContent = value;
+    $(prefix).hidden = !value;
+  }
   if (!$('cookingDialog').open) $('cookingDialog').showModal();
+}
+function renderVersionHistory() {
+  const list = $('versionHistoryList'); list.replaceChildren();
+  if (!active.versions?.length) list.append(element('p', 'help', '改良版を保存すると、以前の本文と振り返りがここに残ります。'));
+  for (const version of [...(active.versions || [])].reverse()) {
+    const entry = element('details', 'version-entry');
+    entry.append(element('summary', '', '第' + version.version + '版 · ' + date(version.savedAt) + ' · ' + version.summary));
+    entry.append(element('p', 'help', 'この版の最終更新 ' + date(version.updatedAt) + ' / 評価 ' + (version.rating === null ? '未評価' : version.rating + ' / 10')));
+    for (const [label, value] of [['レシピ本文', version.recipeText], ['備考', version.notes], ['前回の反省点', version.reflection], ['次回変更したいこと', version.nextChanges]]) {
+      if (!value) continue;
+      entry.append(element('h3', 'field-heading', label), element('div', 'version-text', value));
+    }
+    const restore = element('button', 'button outline full', 'この本文で新しい版を作る'); restore.type = 'button';
+    restore.addEventListener('click', async () => {
+      if ((active.improvementText || active.improvementSummary) && !confirm('貼り付け途中の改良案を、この版の本文に置き換えますか？')) return;
+      if (!await flush()) return;
+      active.improvementText = version.recipeText;
+      active.improvementSummary = '第' + version.version + '版の本文に戻す';
+      changed(); openImprovement();
+    });
+    entry.append(restore); list.append(entry);
+  }
+}
+function renderImprovementContext() {
+  const prompt = improvementPrompt(active, tags);
+  $('improvementExport').value = prompt;
+  $('improvementSource').textContent = '第' + recipeVersion(active) + '版をもとに、第' + (recipeVersion(active) + 1) + '版を作成します。';
+}
+function openImprovement() {
+  if (!active?.recipeText.trim()) { toast('先にレシピ本文を入力してください'); return; }
+  renderImprovementContext();
+  $('improvementText').value = active.improvementText || '';
+  $('improvementSummary').value = active.improvementSummary || '';
+  $('improvementStatus').textContent = '';
+  if (!$('improvementDialog').open) $('improvementDialog').showModal();
+}
+async function saveImprovement() {
+  if ($('saveImprovement').disabled) return;
+  $('saveImprovement').disabled = true;
+  $('closeImprovement').disabled = true;
+  $('improvementText').disabled = $('improvementSummary').disabled = true;
+  try {
+    if (!await flush()) return;
+    const previous = structuredClone(recipes.find(item => item.id === active.id));
+    const next = createRecipeVersion(previous, $('improvementText').value, $('improvementSummary').value);
+    await putRecipeVersion(next, previous);
+    active = structuredClone(next); recipes = recipes.filter(item => item.id !== next.id).concat(next);
+    revision = savedRevision = 0; editorChanged = true;
+    renderEditor(); $('improvementDialog').close();
+    toast('第' + next.version + '版を保存しました。以前の版は改良履歴に残っています');
+    void cloud?.flushPending();
+  } catch (error) {
+    $('improvementError').textContent = error.message || '改良版を保存できませんでした。貼り付けた内容は残っています';
+  } finally {
+    $('saveImprovement').disabled = $('closeImprovement').disabled = false;
+    $('improvementText').disabled = $('improvementSummary').disabled = false;
+  }
 }
 function changed() {
   revision++;
@@ -176,7 +244,7 @@ async function persist() {
   saveQueue = saveQueue.catch(() => {}).then(async () => {
     if (currentRevision <= savedRevision) return;
     const previous = recipes.find(item => item.id === snapshot.id);
-    if (previous && ['recipeText', 'notes', 'rating'].every(k => previous[k] === snapshot[k]) && JSON.stringify(previous.tagIds) === JSON.stringify(snapshot.tagIds) && (previous.genre || '') === (snapshot.genre || '')) {
+    if (previous && ['recipeText', 'notes', 'rating'].every(k => previous[k] === snapshot[k]) && ['reflection', 'nextChanges', 'improvementText', 'improvementSummary'].every(k => (previous[k] || '') === (snapshot[k] || '')) && JSON.stringify(previous.tagIds) === JSON.stringify(snapshot.tagIds) && (previous.genre || '') === (snapshot.genre || '')) {
       savedRevision = currentRevision; if (revision === currentRevision) status('保存済み'); return;
     }
     await putRecipe(snapshot);
@@ -197,7 +265,7 @@ async function persist() {
 }
 async function flush() {
   if (!active || !active.recipeText.trim()) {
-    if (active && revision > 0 && (active.notes || active.rating !== null || active.tagIds.length || active.genre)) {
+    if (active && revision > 0 && (active.notes || active.reflection || active.nextChanges || active.rating !== null || active.tagIds.length || active.genre)) {
       toast('保存するにはレシピ本文を入力してください'); return false;
     }
     return true;
@@ -363,6 +431,20 @@ function wire() {
   $('openCookingMode').addEventListener('click', async () => { if (await flush()) openCookingMode(); });
   $('closeCookingMode').addEventListener('click', () => $('cookingDialog').close());
   $('notes').addEventListener('input', event => { active.notes = event.target.value; changed(); });
+  for (const key of ['reflection', 'nextChanges', 'improvementText', 'improvementSummary']) {
+    $(key).addEventListener('input', event => { active[key] = event.target.value; changed(); $('improvementError').textContent = ''; });
+  }
+  $('openImprovement').addEventListener('click', () => { $('improvementError').textContent = ''; openImprovement(); });
+  $('openImprovementFromNotes').addEventListener('click', () => { $('improvementError').textContent = ''; openImprovement(); });
+  $('saveImprovement').addEventListener('click', saveImprovement);
+  $('closeImprovement').addEventListener('click', () => { $('improvementDialog').close(); void flush(); });
+  $('improvementDialog').addEventListener('cancel', event => { if ($('saveImprovement').disabled) event.preventDefault(); else void flush(); });
+  $('shareImprovement').addEventListener('click', () => { renderImprovementContext(); void shareText($('improvementExport').value, titleOf(active.recipeText) + 'の改良を依頼'); });
+  $('copyImprovement').addEventListener('click', async () => {
+    renderImprovementContext();
+    const copied = await copy($('improvementExport').value);
+    $('improvementStatus').textContent = copied ? 'コピーしました。ChatGPTなどへ貼り付けて改良を依頼してください。' : 'コピーできませんでした。下の「AIへ渡す文章を確認・手動コピー」からコピーしてください。';
+  });
   $('copyNotesSummaryPrompt').addEventListener('click', () => void copy(NOTES_SUMMARY_PROMPT));
   $('clearRating').addEventListener('click', () => { active.rating = null; changed(); renderEditorControls(); });
   $('createTagHere').addEventListener('click', makeTag);
@@ -427,3 +509,4 @@ async function init() {
   }
 }
 init();
+

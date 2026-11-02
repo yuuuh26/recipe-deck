@@ -39,7 +39,7 @@ export async function all(store) {
   });
 }
 
-export async function write(stores, callback, {expectedRevision, recovery, recipe} = {}) {
+export async function write(stores, callback, {expectedRevision, recovery, recipe, expectedRecipe} = {}) {
   const db = await openDatabase();
   const changed = stores.includes('recipes') || stores.includes('tags');
   return new Promise((resolve, reject) => {
@@ -58,13 +58,15 @@ export async function write(stores, callback, {expectedRevision, recovery, recip
         meta.attempt = null;
       }
       const recordChange = previous => {
+        if (expectedRecipe && JSON.stringify(previous) !== JSON.stringify(expectedRecipe)) { tx.abort(); return; }
+        if (recipe && previous && !expectedRecipe && ((previous.version ?? 1) !== (recipe.version ?? 1) || JSON.stringify(previous.versions || []) !== JSON.stringify(recipe.versions || []))) { tx.abort(); return; }
         // Existing unsent data from v1.3.0 must retain its original eligibility.
         if (meta.textChanges === undefined && meta.revision > meta.acknowledgedRevision) meta.immediateRevision = meta.revision;
         meta.textChanges ??= 0; meta.acknowledgedTextChanges ??= 0;
         meta.revision++; meta.lastEditAt = Date.now();
         if (recipe) {
-          meta.textChanges += changedCharacters(previous?.recipeText, recipe.recipeText) + changedCharacters(previous?.notes, recipe.notes);
-          if ((previous?.rating ?? null) !== recipe.rating || JSON.stringify(previous?.tagIds ?? []) !== JSON.stringify(recipe.tagIds) || (previous?.genre || '') !== (recipe.genre || '')) meta.immediateRevision = meta.revision;
+          for (const key of ['recipeText', 'notes', 'reflection', 'nextChanges', 'improvementText', 'improvementSummary']) meta.textChanges += changedCharacters(previous?.[key], recipe[key]);
+          if ((previous?.rating ?? null) !== recipe.rating || JSON.stringify(previous?.tagIds ?? []) !== JSON.stringify(recipe.tagIds) || (previous?.genre || '') !== (recipe.genre || '') || (previous?.version ?? 1) !== (recipe.version ?? 1)) meta.immediateRevision = meta.revision;
         } else meta.immediateRevision = meta.revision;
         cloud.put(meta); apply();
       };
@@ -80,6 +82,11 @@ export const putRecipe = (recipe, settings) => write(settings ? ['recipes', 'set
   tx.objectStore('recipes').put(recipe);
   if (settings) tx.objectStore('settings').put({key: 'main', ...settings});
 }, {recipe});
+// Archive the old version and publish its replacement in one transaction.
+// A second tab must not silently replace a version made after this editor opened.
+export const putRecipeVersion = (recipe, expectedRecipe) => write(['recipes'], tx => {
+  tx.objectStore('recipes').put(recipe);
+}, {recipe, expectedRecipe});
 export const putSettings = settings => write(['settings'], tx => tx.objectStore('settings').put({key: 'main', ...settings}));
 // Pending AI drafts survive failed imports without triggering a backup.
 export const putAiDraft = draft => write(['aiDrafts'], tx => tx.objectStore('aiDrafts').put(draft));
@@ -163,3 +170,4 @@ export async function cloudMeta() {
     r.onerror = () => reject(r.error);
   });
 }
+
