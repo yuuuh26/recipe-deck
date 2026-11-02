@@ -1,4 +1,4 @@
-const CACHE = 'recipe-deck-v1.5.3-mcp-drafts';
+const CACHE = 'recipe-deck-v1.6.0-recipe-versions';
 const ASSETS = ['./','./index.html','./style.css','./app.mjs','./model.mjs','./db.mjs','./cloud-snapshot.mjs','./cloud-api.mjs','./cloud-auto.mjs','./cloud-policy.mjs','./cloud-ui.mjs','./draft-inbox.mjs','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
@@ -19,3 +19,4 @@ self.addEventListener('fetch', event => {
   if (!paths.includes(url.pathname)) return;
   event.respondWith(caches.open(CACHE).then(cache => cache.match(event.request, {ignoreSearch:true})).then(cached => cached || fetch(event.request)));
 });
+
